@@ -25,11 +25,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      # enablement turns Pages on for the repo the first time this runs, instead of
-      # failing with "Get Pages site failed" until someone flips it in Settings.
+      # Pages has to be switched on once by hand: Settings -> Pages -> Build and
+      # deployment -> Source: GitHub Actions. The workflow token cannot create the
+      # site itself (that needs admin scope), so `enablement: true` here just fails
+      # with a more confusing error. Once it is on, this step and the deploy work.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
