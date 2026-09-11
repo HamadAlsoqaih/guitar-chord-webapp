@@ -64,18 +64,39 @@ refraction pass):
 
 | | idle | spinning |
 |---|---|---|
-| 3 reels | 33 | 33 |
-| 6 reels | 39 | 39 |
+| 3 reels | 26 / 34 | 26 / 34 |
+| 6 reels | 29 / 40 | 29 / 40 |
 
-Flat under load, which is the point. Getting there meant caching `poolOf()` so it
+Two numbers because most frames skip the refraction pass: the lower one is a frame
+that reused the buffer, the higher one a frame that redrew it. Flat under load,
+which is the point. Getting there meant caching `poolOf()` so it
 returns a stable reference — as a zustand selector, a fresh array each call
 re-rendered every subscriber ten times a second during a spin and sent the
 environment probe back to re-bake — dropping the real-time shadow map in favour of a
 contact shadow baked on frame one, and swapping the drum's blur texture without
 forcing a shader rebuild.
 
-DPR is capped at 2 and walked down by `PerformanceMonitor` before the frame rate can
-slip; rendering stops entirely when the tab is hidden.
+**Nothing is drawn that nobody asked for.** The scene renders on demand: anything
+that starts a motion — a pull, a roll, a drag, the beat, the idle sway — says so
+(`activity.js`), and the frame governor asks for every frame the device will give
+until that settles, then drops to 20-30fps, which is all a lamp chase needs. The
+refraction buffer goes further and is only redrawn when the drums or the camera have
+actually moved, with a twice-a-second heartbeat as insurance against a change the
+cheap test cannot see. An idle machine costs a fraction of a busy one.
+
+**Quality tiers** (`quality.js`) set the pixels, never the parts: the cabinet, the
+curved glass, the lamps and the neon are identical on every device. What changes is
+the device pixel ratio, the size of the refraction buffer, the printed strip's
+resolution (it is several thousand pixels wide, so this is the difference between
+thirty megabytes of texture and eight), multisampling, the chromatic fringe in the
+glass, and the frosted card in the page below. The tier is a starting guess from the
+device's cores, memory and screen; `PerformanceMonitor` still walks the resolution
+down from there if the guess was optimistic, and rendering stops entirely when the
+tab is hidden. `?quality=low|medium|high` forces a tier for testing.
+
+On the software rasteriser the tests run on, the low tier renders an idle frame
+about five times faster than the high one, and the two are hard to tell apart in a
+screenshot.
 
 ## Touch
 

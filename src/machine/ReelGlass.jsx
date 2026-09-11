@@ -3,6 +3,7 @@ import { useFBO } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { GRAPHITE_DARK, NEON } from './materials.js'
+import { tier } from './quality.js'
 
 /**
  * Curved glass with real refraction, without paying for a second full scene render.
@@ -19,6 +20,23 @@ import { GRAPHITE_DARK, NEON } from './materials.js'
  * while costing a fraction of a full pass.
  */
 export const REFRACT_LAYER = 1
+
+/**
+ * Force the refraction buffer to be redrawn for a while.
+ *
+ * The buffer is only redrawn when something behind the pane has actually moved, and
+ * the cheap test for that — the camera and the drums — cannot see a new strip being
+ * printed or a light pulsing. Anything that changes what is behind the glass without
+ * moving it says so here.
+ */
+let dirtyUntil = 0
+export function invalidateGlass(ms = 400) {
+  const end = performance.now() + ms
+  if (end > dirtyUntil) dirtyUntil = end
+}
+
+/** Sum of the drums' angles, written by Reels every frame. */
+export const reelMotion = { sum: 0 }
 
 /** Pointer events pass straight through the glass to the drums behind it. */
 const noRaycast = () => null
@@ -63,10 +81,16 @@ const fragmentShader = /* glsl */ `
     vec2 offset = N.xy * uRefract;
 
     // Splitting the channels by a hair gives the coloured fringe real glass has.
-    float r = texture2D(tBehind, uv + offset * (1.0 + uChroma)).r;
-    vec3  g = texture2D(tBehind, uv + offset).rgb;
-    float b = texture2D(tBehind, uv + offset * (1.0 - uChroma)).b;
-    vec3 behind = vec3(r, g.g, b);
+    // It costs three texture fetches instead of one, which is why the weakest
+    // devices take the single sample: the refraction survives, the fringe does not.
+    #ifdef CHROMA
+      float r = texture2D(tBehind, uv + offset * (1.0 + uChroma)).r;
+      vec3  g = texture2D(tBehind, uv + offset).rgb;
+      float b = texture2D(tBehind, uv + offset * (1.0 - uChroma)).b;
+      vec3 behind = vec3(r, g.g, b);
+    #else
+      vec3 behind = texture2D(tBehind, uv + offset).rgb;
+    #endif
 
     // A high exponent keeps the mirror-like falloff to genuinely grazing angles.
     // Lower, and the pane whites out near the window edges and hides the outer reels.
@@ -89,9 +113,12 @@ export function ReelGlass({ geometryArgs, position, scaleRef, dark }) {
   const size = useThree((s) => s.size)
   const viewport = useThree((s) => s.viewport)
 
-  // Full canvas resolution, capped so a 3x-DPR screen cannot run away with it.
-  const width = Math.min(2048, Math.round(size.width * Math.min(viewport.dpr, 2)))
-  const height = Math.min(1536, Math.round(size.height * Math.min(viewport.dpr, 2)))
+  // Full canvas resolution on a fast device, capped so a 3x-DPR screen cannot run
+  // away with it, and scaled down by tier where the fill rate is not there.
+  const q = tier()
+  const scale = Math.min(viewport.dpr, 2) * q.glass
+  const width = Math.min(2048, Math.round(size.width * scale))
+  const height = Math.min(1536, Math.round(size.height * scale))
   const fbo = useFBO(width, height, { depthBuffer: true, stencilBuffer: false })
 
   const uniforms = useMemo(
@@ -105,18 +132,27 @@ export function ReelGlass({ geometryArgs, position, scaleRef, dark }) {
       uChroma: { value: 0.18 },
       uReflectTint: { value: new THREE.Color('#8fa6d8') },
       uReflectStrength: { value: 0.34 },
-      uSweep: { value: 0.42 },
+      uSweep: { value: q.sweep },
     }),
-    []
+    [q.sweep]
   )
+  const defines = useMemo(() => (q.chroma ? { CHROMA: '' } : {}), [q.chroma])
 
   useEffect(() => {
     uniforms.uReflectTint.value.set(dark ? '#43587f' : '#b9c9e8')
     uniforms.uReflectStrength.value = dark ? 0.3 : 0.38
+    invalidateGlass()
   }, [dark, uniforms])
 
   const clearColor = useMemo(() => new THREE.Color(GRAPHITE_DARK), [])
+  const drawingBuffer = useMemo(() => new THREE.Vector2(), [])
   const previous = useMemo(() => ({ color: new THREE.Color(), mask: 0 }), [])
+
+  // Infinity, so the very first frame always counts as moved and fills the buffer.
+  const seen = useRef({ sig: Number.POSITIVE_INFINITY, at: 0 })
+  // The scene is still assembling for the first moments — textures arriving, drums
+  // taking their places — and none of that moves anything the cheap test watches.
+  useEffect(() => invalidateGlass(2500), [])
 
   /**
    * Priority < 0 so this runs before R3F's own render: the buffer has to hold this
@@ -128,7 +164,40 @@ export function ReelGlass({ geometryArgs, position, scaleRef, dark }) {
     const { gl, scene, camera } = state
 
     uniforms.uTime.value += delta
-    uniforms.uResolution.value.set(fbo.width, fbo.height)
+    // The screen-space lookup is in canvas pixels, not buffer pixels: the buffer
+    // holds the same view at a smaller size, so dividing gl_FragCoord by anything
+    // but the drawing buffer sends the sample outside the image entirely.
+    gl.getDrawingBufferSize(drawingBuffer)
+    uniforms.uResolution.value.copy(drawingBuffer)
+    if (scaleRef?.current != null) mesh.scale.x = scaleRef.current
+
+    /*
+     * Only redraw the buffer when what it holds could have changed.
+     *
+     * Behind the pane there are three drums, two light bars and a back panel, all
+     * of them lit the same way from one frame to the next. If the drums have not
+     * turned, the camera has not moved and the cabinet is not resizing, the buffer
+     * from last frame is still pixel-for-pixel correct — and skipping it halves the
+     * work of an idle frame, which is most frames.
+     */
+    const sig =
+      reelMotion.sum +
+      camera.position.x * 7.1 +
+      camera.position.y * 13.3 +
+      camera.position.z * 19.7 +
+      (scaleRef?.current ?? 1) * 101.3
+    const moved = Math.abs(sig - seen.current.sig) > 1e-5
+    const now = performance.now()
+    /*
+     * Refresh at least twice a second even when nothing appears to have moved. The
+     * test above knows about the drums and the camera and nothing else — a buffer
+     * reallocated when the resolution changes, a material that finished loading —
+     * so a slow heartbeat is what keeps a missed case from freezing the glass on a
+     * stale image. It still skips the great majority of idle frames.
+     */
+    if (!moved && now >= dirtyUntil && now - seen.current.at < 500) return
+    seen.current.sig = sig
+    seen.current.at = now
 
     previous.mask = camera.layers.mask
     gl.getClearColor(previous.color)
@@ -148,7 +217,6 @@ export function ReelGlass({ geometryArgs, position, scaleRef, dark }) {
     gl.setClearColor(previous.color, previousAlpha)
 
     uniforms.tBehind.value = fbo.texture
-    if (scaleRef?.current != null) mesh.scale.x = scaleRef.current
   }, -1)
 
   return (
@@ -159,6 +227,7 @@ export function ReelGlass({ geometryArgs, position, scaleRef, dark }) {
     <mesh ref={meshRef} position={position} raycast={noRaycast}>
       <cylinderGeometry args={geometryArgs} />
       <shaderMaterial
+        defines={defines}
         vertexShader={vertexShader}
         fragmentShader={fragmentShader}
         uniforms={uniforms}

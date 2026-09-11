@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { REEL_FACE, reelRadius } from './geometry.js'
+import { tier } from './quality.js'
 
 /**
  * Builds the printed strip that wraps around a reel drum.
@@ -26,8 +27,17 @@ import { REEL_FACE, reelRadius } from './geometry.js'
  */
 const TARGET_CELLS = 18
 
-/** Texture resolution along the drum's width. */
-const FACE_PX = 640
+/**
+ * Texture resolution along the drum's width.
+ *
+ * The strip is as long as the drum's circumference, so this one number sets a
+ * texture several thousand pixels wide — and there are two of them, sharp and
+ * smeared. At 640 that is around thirty megabytes on the GPU once mipmaps are
+ * counted, which a weak tablet feels in every frame it samples them. The chords
+ * stay legible well below that, so the weaker tiers print a smaller strip.
+ */
+const FACE_BY_TIER = { high: 640, medium: 512, low: 384 }
+const ANISOTROPY_BY_TIER = { high: 8, medium: 4, low: 2 }
 
 const KNOW = '#2f6df0'
 const LEARN = '#f4443f'
@@ -94,6 +104,8 @@ export function buildReelTexture(pool) {
   const faceWidth = REEL_FACE
   // Total width is set by the drum's proportions, so cells stay square-ish on screen
   // whatever the pool size: circumference / faceWidth * resolution.
+  const q = tier()
+  const FACE_PX = FACE_BY_TIER[q.name] ?? 640
   const totalPx = Math.round(((2 * Math.PI * radius) / faceWidth) * FACE_PX)
   const cellPx = totalPx / cells
 
@@ -145,7 +157,7 @@ export function buildReelTexture(pool) {
   const texture = new THREE.CanvasTexture(canvas)
   texture.wrapS = THREE.RepeatWrapping
   texture.colorSpace = THREE.SRGBColorSpace
-  texture.anisotropy = 8
+  texture.anisotropy = ANISOTROPY_BY_TIER[q.name] ?? 8
 
   return { texture, blurred: blurAcross(canvas, cells), cells }
 }

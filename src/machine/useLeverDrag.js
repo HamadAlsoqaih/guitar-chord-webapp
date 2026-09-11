@@ -6,6 +6,7 @@ import {
   LEVER_TRAVEL_PX,
 } from '../store/defaults.js'
 import { useStore } from '../store/useStore.js'
+import { poke } from './activity.js'
 
 /**
  * Shared lever behaviour for whichever renderer is on screen.
@@ -22,6 +23,9 @@ export function useLeverDrag({ onChange, onCommit, onRelease }) {
   const emit = useCallback(
     (v) => {
       valueRef.current = v
+      // The lever is being worked: the arm, and the spring back after it, both
+      // need every frame they can get.
+      poke(700)
       onChange?.(v)
     },
     [onChange]

@@ -21,6 +21,7 @@ import {
 import { getLeverRect, pullLever } from '../machine/leverBridge.js'
 import { useStore } from '../store/useStore.js'
 import { filledBubble, paintBubble } from './bubbleArt.js'
+import { tier } from '../machine/quality.js'
 import { findCrop, matte } from './videoMatte.js'
 
 const asset = (file) => `${import.meta.env.BASE_URL}assets/${file}`
@@ -468,11 +469,22 @@ function CocoVideo({ size }) {
       framedRef.current = true
     }
 
-    const draw = () => {
+    /*
+     * Matting is per-pixel JavaScript on the main thread, so on a weak device it is
+     * competing with the machine for the same frame. Cutting it to a hand-drawn
+     * cadence costs nothing anyone can see — the clip is a gentle idle loop — and
+     * gives those milliseconds back to the thing people are actually looking at.
+     */
+    const minGap = 1000 / (tier().name === 'high' ? 60 : tier().name === 'medium' ? 30 : 24)
+    let lastPaint = 0
+
+    const draw = (now) => {
       raf = requestAnimationFrame(draw)
       // Idle: hold the matted first frame instead of re-processing it every tick.
       if (!playingRef.current && framedRef.current) return
       if (!video.videoWidth || video.readyState < 2) return
+      if (now - lastPaint < minGap) return
+      lastPaint = now
       paint(video, video.videoWidth, video.videoHeight)
     }
     raf = requestAnimationFrame(draw)

@@ -11,7 +11,8 @@ import {
 import { poolOf, useStore } from '../store/useStore.js'
 import { REEL_FACE, REEL_Y, reelRadius, reelX, reelZ, rotationForCell } from './geometry.js'
 import { buildReelTexture, cellForPoolIndex } from './reelTexture.js'
-import { behindGlass } from './ReelGlass.jsx'
+import { invalidateGlass, reelMotion, behindGlass } from './ReelGlass.jsx'
+import { poke } from './activity.js'
 
 const SEGMENTS = 44
 /**
@@ -91,6 +92,8 @@ export function Reels({ onClack }) {
   // Re-seat the drums whenever the pool changes, so the printed strip and the
   // logical index can never drift apart.
   useEffect(() => {
+    // A freshly printed strip is a change the glass cannot see by watching angles.
+    invalidateGlass()
     const { reelIdx } = useStore.getState()
     drums.current.forEach((drum, i) => {
       if (!drum) return
@@ -107,6 +110,9 @@ export function Reels({ onClack }) {
     if (!results) return undefined
     const n = results.length
     const slow = reducedMotion()
+
+    // Draw at full rate for the whole roll: the last drum's settle is the end of it.
+    poke(SPIN_FIRST_STOP_MS + (n - 1) * SPIN_STAGGER_MS + SPIN_SETTLE_MS + 600)
 
     killTweens()
 
@@ -167,12 +173,14 @@ export function Reels({ onClack }) {
    * free, and it can never get stuck blurred.
    */
   useFrame((_, delta) => {
+    let angles = 0
     for (let i = 0; i < materials.length; i++) {
       const drum = drums.current[i]
       const material = materials[i]
       if (!drum) continue
       const speed = delta > 0 ? Math.abs(drum.rotation.x - lastRotation.current[i]) / delta : 0
       lastRotation.current[i] = drum.rotation.x
+      angles += drum.rotation.x
 
       const smeared = material.map === blurred
       const want = (smeared ? speed > BLUR_OFF : speed > BLUR_ON) ? blurred : texture
@@ -182,6 +190,9 @@ export function Reels({ onClack }) {
         material.map = want
       }
     }
+    // What the glass watches to decide whether its buffer is still valid.
+    reelMotion.sum = angles
+
     // Drums ease toward their slot as the reel count changes, instead of popping.
     const group = groupRef.current
     if (group) {
@@ -198,6 +209,7 @@ export function Reels({ onClack }) {
   const manualDrag = (i) => (event) => {
     if (!useStore.getState().unlocked) return
     event.stopPropagation()
+    poke(600)
     const drum = drums.current[i]
     if (!drum) return
     const pointerId = event.pointerId
@@ -221,6 +233,7 @@ export function Reels({ onClack }) {
       // Dragging down rolls the chords downward: the drum turns one cell forward
       // and the pool index steps back, which is the same pairing the spin uses.
       const down = d > 0
+      poke(600)
       useStore.getState().nudgeReel(i, down ? -1 : 1)
       gsap.to(drum.rotation, {
         x: drum.rotation.x + ((down ? 1 : -1) * Math.PI * 2) / cells,
@@ -242,6 +255,7 @@ export function Reels({ onClack }) {
       // Snap onto the nearest detent so a drum never rests between chords.
       const step = (Math.PI * 2) / cells
       const snapped = Math.round((drum.rotation.x - step / 2) / step) * step + step / 2
+      poke(700)
       gsap.to(drum.rotation, { x: snapped, duration: 0.3, ease: 'back.out(2)', overwrite: true })
     }
     window.addEventListener('pointermove', move)

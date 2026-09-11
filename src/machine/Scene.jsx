@@ -13,6 +13,9 @@ import { Bulbs, MarqueePlate, NeonSign } from './Trim.jsx'
 import { CABINET_H, LEVER_OVERHANG, SIGN_Y, cabinetWidth } from './geometry.js'
 import { cellsAround } from './reelTexture.js'
 import { getTilt, startPointerTilt } from './tilt.js'
+import { poke } from './activity.js'
+import { invalidateGlass } from './ReelGlass.jsx'
+import { tier } from './quality.js'
 import { BLUE, NEON } from './materials.js'
 
 const prefersReducedMotion = () =>
@@ -57,6 +60,8 @@ export function Scene() {
   /** Each drum landing gets a click and a small kick to the cabinet. */
   const onClack = useCallback((index) => {
     clack(0.8)
+    // The cabinet rings for about a second after a landing.
+    poke(1200)
     jolt.current.v -= 0.05
     const { reelCount: n } = useStore.getState()
     if (index === n - 1) winRef.current = performance.now()
@@ -65,6 +70,8 @@ export function Scene() {
   /** The pull itself: a jolt, and a slow camera push that eases back as reels land. */
   const onCommit = useCallback(() => {
     jolt.current.v -= 0.11
+    // The camera push and its return run for a little over three seconds.
+    poke(3600)
     if (reduce) return
     gsap.killTweensOf(cameraOffset)
     gsap.to(cameraOffset, {
@@ -78,6 +85,21 @@ export function Scene() {
   }, [reduce])
 
   useEffect(() => (preset.tilt > 0 ? startPointerTilt() : undefined), [preset.tilt])
+
+  // Idle motion, when it is switched on, is a continuous animation of the whole
+  // cabinet — and it moves the machine behind the glass, so both the frame rate and
+  // the refraction buffer have to keep up with it.
+  const floating = preset.float > 0
+  useEffect(() => {
+    if (!floating) return undefined
+    const id = setInterval(() => {
+      poke(1200)
+      invalidateGlass(1200)
+    }, 800)
+    poke(1200)
+    invalidateGlass(1200)
+    return () => clearInterval(id)
+  }, [floating])
 
   // Cabinet jolt: a light spring so the kick from a pull or a landing decays naturally.
   useFrame((state, delta) => {
@@ -131,7 +153,7 @@ export function Scene() {
         blur={2.6}
         opacity={dark ? 0.75 : 0.42}
         far={3}
-        resolution={256}
+        resolution={tier().shadowResolution}
       />
     </>
   )
@@ -213,7 +235,7 @@ const Lighting = memo(function Lighting({ dark }) {
        * Baked once (frames={1}): the reflections the glass and the lever ball need,
        * without re-rendering an environment probe on every frame.
        */}
-      <Environment frames={1} resolution={128}>
+      <Environment frames={1} resolution={tier().envResolution}>
         {/* A softbox rig: the reflections a metal cabinet and a gloss ball need. */}
         <Lightformer intensity={dark ? 2.4 : 4.2} position={[0, 5, 4]} scale={[11, 4, 1]} />
         <Lightformer intensity={dark ? 2.2 : 2.6} position={[7, 1, 5]} scale={[5, 8, 1]} />
@@ -233,7 +255,11 @@ function WinBurst({ winRef }) {
     const light = lightRef.current
     if (!light) return
     const since = performance.now() - winRef.current
-    light.intensity = since < 750 ? (1 - since / 750) ** 2 * 9 : 0
+    const lit = since < 750
+    light.intensity = lit ? (1 - since / 750) ** 2 * 9 : 0
+    // This light falls on the drums, which are behind the glass: while it is
+    // fading the refraction buffer is out of date even though nothing has moved.
+    if (lit) invalidateGlass(0)
   })
 
   return <pointLight ref={lightRef} color={NEON} position={[0, 0.12, -0.4]} distance={7} decay={2} intensity={0} />

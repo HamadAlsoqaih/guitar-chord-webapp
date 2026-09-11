@@ -1,13 +1,11 @@
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { PerformanceMonitor } from '@react-three/drei'
 import * as THREE from 'three'
 import { useStore } from '../store/useStore.js'
 import { Scene } from './Scene.jsx'
-
-/** Capped at 2 on retina; the monitor can walk it down before the frame rate slips. */
-const DPR_MAX = 2
-const DPR_MIN = 1.25
+import { busy, poke } from './activity.js'
+import { tier } from './quality.js'
 
 /**
  * Draw-call and triangle counts for the perf probe.
@@ -43,14 +41,80 @@ function RenderStats() {
   return null
 }
 
+/**
+ * Decides when a frame is worth drawing.
+ *
+ * The scene runs on demand rather than on a free-running loop. While anything is
+ * moving — a pull, a roll, a drag, the beat, the idle sway if it is switched on —
+ * it asks for every frame the device will give. The rest of the time it asks for
+ * twenty to thirty, which is plenty for a lamp chase and leaves the GPU alone.
+ *
+ * On a weak tablet that is the difference between a machine that is always warm and
+ * one that only spends when there is something to show.
+ */
+function FrameGovernor() {
+  const invalidate = useThree((s) => s.invalidate)
+  const gl = useThree((s) => s.gl)
+  const idleFps = tier().idleFps
+  const spinning = useStore((s) => s.reelSpin.some(Boolean))
+  const playing = useStore((s) => s.playing)
+  const beat = useStore((s) => s.beat)
+  const reelCount = useStore((s) => s.reelCount)
+  const theme = useStore((s) => s.theme)
+  const pool = useStore((s) => s.known)
+  const learn = useStore((s) => s.learn)
+
+  // Any change worth animating gets a burst of full-rate frames.
+  useEffect(() => {
+    poke(spinning ? 4000 : 1400)
+  }, [spinning, beat, playing, reelCount, theme, pool, learn])
+
+  // A touch anywhere on the machine, even one that turns out to be a stray tap.
+  useEffect(() => {
+    const el = gl.domElement
+    const wake = () => poke(900)
+    el.addEventListener('pointerdown', wake, { passive: true })
+    el.addEventListener('pointermove', wake, { passive: true })
+    return () => {
+      el.removeEventListener('pointerdown', wake)
+      el.removeEventListener('pointermove', wake)
+    }
+  }, [gl])
+
+  useEffect(() => {
+    let raf = 0
+    let lastIdle = 0
+    const tick = (now) => {
+      raf = requestAnimationFrame(tick)
+      if (busy()) {
+        invalidate()
+        lastIdle = now
+        return
+      }
+      if (now - lastIdle >= 1000 / idleFps) {
+        lastIdle = now
+        invalidate()
+      }
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [idleFps, invalidate])
+
+  return null
+}
+
 export default function MachineCanvas() {
   const setReady3d = useStore((s) => s.setReady3d)
-  const [dpr, setDpr] = useState(DPR_MAX)
+  const q = useRef(tier()).current
+  const [dpr, setDpr] = useState(q.dpr)
 
   // Stop rendering entirely when the app is not on screen.
-  const [frameloop, setFrameloop] = useState('always')
+  const [frameloop, setFrameloop] = useState('demand')
   useEffect(() => {
-    const onVisibility = () => setFrameloop(document.hidden ? 'never' : 'always')
+    const onVisibility = () => {
+      setFrameloop(document.hidden ? 'never' : 'demand')
+      if (!document.hidden) poke(600)
+    }
     document.addEventListener('visibilitychange', onVisibility)
     return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [])
@@ -67,7 +131,9 @@ export default function MachineCanvas() {
       frameloop={frameloop}
 
       gl={{
-        antialias: true,
+        // Multisampling is the first thing a weak GPU should not be paying for; at
+        // two device pixels per CSS pixel the edges hold up without it.
+        antialias: q.antialias,
         alpha: true,
         powerPreference: 'high-performance',
         toneMapping: THREE.ACESFilmicToneMapping,
@@ -78,11 +144,12 @@ export default function MachineCanvas() {
       }}
     >
       <RenderStats />
+      <FrameGovernor />
       <PerformanceMonitor
         // Resolution is the first thing to give: a slightly softer frame beats a
         // dropped one, and the machine keeps every detail either way.
-        onDecline={() => setDpr(DPR_MIN)}
-        onIncline={() => setDpr(DPR_MAX)}
+        onDecline={() => setDpr(q.dprFloor)}
+        onIncline={() => setDpr(q.dpr)}
       >
         <Suspense fallback={null}>
           <Scene />
