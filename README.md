@@ -87,6 +87,15 @@ silently break otherwise — the audio context unlocked from a real gesture, the
 `npm test` drives the app through real touch events at both iPad orientations,
 including two-finger reel scrubbing and a stray second finger during a lever pull.
 
+## Assets
+
+The character files carry embedded provenance metadata from the tool that produced
+them. `scripts/strip-provenance.mjs` removes it — run it after replacing any asset,
+or `--check` to see what is still in there. PNGs lose only metadata chunks, so the
+pixels are untouched; the MP4's metadata boxes are retyped to `free` and zeroed
+rather than cut out, because its sample tables address `mdat` by absolute file
+offset and removing bytes ahead of it would break playback.
+
 ## Characters
 
 Coco is filmed on black; `src/coco/videoMatte.js` lifts him off that background at
