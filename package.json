@@ -9,7 +9,9 @@
     "preview": "vite preview --host",
     "test": "node tests/drive.mjs",
     "test:framing": "node tests/framing.mjs",
-    "test:audio": "node tests/audio.mjs"
+    "test:audio": "node tests/audio.mjs",
+    "test:offline": "node tests/offline.mjs",
+    "test:tilt": "node tests/tilt.mjs"
   },
   "dependencies": {
     "@react-spring/three": "^9.7.5",

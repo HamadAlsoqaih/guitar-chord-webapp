@@ -71,6 +71,14 @@ rest of the session. Nothing renders while it is hidden, the context probe hands
 own context straight back, and if a context is lost anyway the DOM machine takes
 over until the browser restores it.
 
+**Tilt** is measured against the screen, not the device. `gamma` and `beta` are
+device axes, so on a tablet held in landscape they have swapped over: tilting it
+sideways moves `beta`, and the code was watching `gamma` — which is why "tilt with
+the iPad" appeared to do nothing. The pair is rotated by the screen's own angle, and
+the first reading taken as level, so it leans from however the tablet is being held.
+`npm run test:tilt` checks that mapping on its own — it is pure arithmetic, and
+needs neither a browser nor a gyroscope.
+
 **Framing** reserves room for the push. The pull dollies the camera in, which
 magnifies everything in frame, and the fit has to account for the cabinet's own
 depth — its front face is half a unit nearer than the plane the fit is solved for,
@@ -148,6 +156,28 @@ a rising figure.
 `npm run test:audio` taps the audio graph: it records every voice as it is scheduled
 and watches every sample that reaches the speakers, which is how the rattle, the
 three bells and their rising pitches are checked without anyone listening.
+
+## Loading and caching
+
+The first visit shows a skeleton in the machine's place — the same proportions, so
+nothing moves when the real one arrives. It used to show the DOM machine, which
+meant the app opened on the flat version and swapped it for the 3D one a moment
+later: a visible downgrade for anyone who had seen the real thing. The DOM machine
+is still there for the case it was written for — no WebGL, or a context the browser
+took away — where it is a working machine rather than a placeholder.
+
+A service worker (`public/sw.js`) makes the second visit instant and an offline one
+possible. Assets are served cache-first, since the build content-hashes their names
+and a deploy produces new ones; everything else, the page above all, is
+network-first, because the page is what names the current asset filenames and a
+stale copy of it would pin the whole app to an old version. The first visit finishes
+before the worker exists, so none of its downloads went through it — the page
+reports what it actually loaded and the worker stores that, which needs no generated
+manifest kept in step with the build. Lookups ignore `Vary`: these responses carry
+`Vary: Origin` while the page's own module scripts are fetched with `crossorigin`,
+and the two never matched, leaving a cache that was full and useless.
+
+`npm run test:offline` cuts the network and reloads to prove the app still opens.
 
 ## Touch
 

@@ -106,8 +106,17 @@ async function run() {
 
   console.log('\nTap to pull')
   await dragLever(page, { tap: true })
-  await wait(700)
-  check('tap triggered a spin', await spinning(page))
+  /*
+   * Wait for the spin rather than assuming a latency. The tap plays the whole pull
+   * for the user — about half a second of animation before the reels are released —
+   * and this runs on a software rasteriser at a few frames a second, so the moment
+   * it lands moves around. What is being checked is that a tap rolls at all.
+   */
+  const tapSpun = await page
+    .waitForFunction(() => window.__chordRoller.state().spinning, null, { timeout: 4000 })
+    .then(() => true)
+    .catch(() => false)
+  check('tap triggered a spin', tapSpun)
   await wait(3400)
 
   console.log('\nManual mode')
@@ -273,6 +282,54 @@ async function run() {
   check('Coco re-grounds after rotating', rotated.cocoOnScreen)
   await page.setViewportSize(IPAD_LANDSCAPE)
   await wait(900)
+
+  console.log('\nCharacter size')
+  /*
+   * Two bugs met here. Writing width or height on a canvas resets its bitmap, so
+   * resizing the filmed Coco wiped him off the screen and nothing repainted him —
+   * he simply vanished. And since a character is positioned by its top left corner,
+   * growing one left its feet through the floor.
+   */
+  await page.click('.nav button:last-child')
+  await wait(300)
+  await page.click('.group:last-child .row')
+  await wait(400)
+  // Scoped to the sheet: the settings page behind it has a segmented control too.
+  await page.click('.scrim .seg button:first-child') // the filmed Coco
+  await wait(700)
+  for (let i = 0; i < 6; i++) {
+    await page.click('[aria-label="Bigger"]')
+    await wait(120)
+  }
+  await wait(500)
+  const resized = await page.evaluate(() => {
+    const canvas = document.querySelector('[data-coco-canvas]')
+    const char = document.querySelector('.char')
+    const nav = document.querySelector('.nav').getBoundingClientRect()
+    if (!canvas || !char) return null
+    const g = canvas.getContext('2d', { willReadFrequently: true })
+    const { data } = g.getImageData(0, 0, canvas.width, canvas.height)
+    let opaque = 0
+    for (let i = 3; i < data.length; i += 4) if (data[i] > 32) opaque++
+    return {
+      inked: opaque / (canvas.width * canvas.height),
+      aboveFloor: nav.top - char.getBoundingClientRect().bottom,
+      width: canvas.width,
+    }
+  })
+  check('Coco is still drawn after resizing', !!resized && resized.inked > 0.02, `${((resized?.inked ?? 0) * 100).toFixed(1)}% inked`)
+  check('and still standing on the floor', !!resized && Math.abs(resized.aboveFloor) < 24, `${Math.round(resized?.aboveFloor ?? -1)}px above`)
+  // Put him back the way he was.
+  for (let i = 0; i < 6; i++) {
+    await page.click('[aria-label="Smaller"]')
+    await wait(90)
+  }
+  await page.click('.scrim .seg button:nth-child(2)')
+  await wait(300)
+  await page.click('.sheet-close')
+  await wait(300)
+  await page.click('.nav button:first-child')
+  await wait(600)
 
   console.log('\nTab switching')
   /*

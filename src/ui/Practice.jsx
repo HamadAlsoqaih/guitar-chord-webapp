@@ -1,5 +1,6 @@
 import { Suspense, forwardRef, lazy, useEffect, useState } from 'react'
 import { MachineFallback } from '../machine/MachineFallback.jsx'
+import { MachineSkeleton } from '../machine/MachineSkeleton.jsx'
 import { useStore } from '../store/useStore.js'
 
 const MachineCanvas = lazy(() => import('../machine/MachineCanvas.jsx'))
@@ -29,20 +30,30 @@ function webglSupported() {
 export const Practice = forwardRef(function Practice({ hidden }, ref) {
   const ready3d = useStore((s) => s.ready3d)
   const [use3d, setUse3d] = useState(null)
+  // Whether the 3D machine has ever been up. Before that, waiting is loading; after
+  // it, waiting means the context went away and the DOM machine has to take over.
+  const [everReady, setEverReady] = useState(false)
 
   useEffect(() => {
     setUse3d(webglSupported())
   }, [])
 
+  useEffect(() => {
+    if (ready3d) setEverReady(true)
+  }, [ready3d])
+
+  const fallback = use3d === false || (everReady && !ready3d)
+
   return (
     <div className="machine-area" ref={ref} hidden={hidden}>
       <div className="machine-slot">
         {/*
-         * The DOM machine stays mounted and interactive until WebGL reports it has
-         * taken over, so there is never a dead gap while the 3D chunk loads — and it
-         * remains the permanent fallback where WebGL2 is unavailable.
+         * Loading shows a skeleton; the DOM machine appears only when it is the
+         * machine rather than a stand-in — no WebGL at all, or a context lost after
+         * the 3D machine had been running.
          */}
-        {!ready3d && <MachineFallback />}
+        {fallback && <MachineFallback />}
+        {!ready3d && !fallback && <MachineSkeleton />}
         {use3d && (
           <Suspense fallback={null}>
             <MachineCanvas />

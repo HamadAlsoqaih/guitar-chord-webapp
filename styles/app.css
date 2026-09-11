@@ -208,6 +208,102 @@ input {
   animation: sweep 1.15s ease-in-out infinite;
 }
 
+/* --------------------------------------------------------------- skeleton */
+/*
+ * The machine's silhouette while the real one loads. It is built from the same
+ * proportions as the cabinet, so nothing moves when the 3D machine replaces it, and
+ * it is deliberately featureless — a placeholder that could be mistaken for the
+ * finished thing is worse than an obvious one.
+ */
+.skeleton {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5%;
+  pointer-events: none;
+}
+
+.skeleton-sign,
+.skeleton-body,
+.skeleton-window,
+.skeleton-marquee,
+.skeleton-reel {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-sign {
+  width: 46%;
+  height: 15%;
+}
+
+.skeleton-body {
+  width: 66%;
+  flex: 0 0 62%;
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6%;
+  padding: 5% 6%;
+}
+
+.skeleton-window {
+  width: 100%;
+  flex: 1 1 auto;
+  display: flex;
+  gap: 3%;
+  padding: 4%;
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.skeleton-reel {
+  flex: 1 1 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
+
+.skeleton-marquee {
+  width: 58%;
+  height: 13%;
+  flex: 0 0 auto;
+}
+
+/* One light passing across the whole thing, rather than each piece pulsing. */
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    color-mix(in srgb, var(--panel) 55%, transparent) 50%,
+    transparent 65%
+  );
+  animation: skeleton-sweep 1.6s ease-in-out infinite;
+}
+
+@keyframes skeleton-sweep {
+  from {
+    transform: translateX(-60%);
+  }
+  to {
+    transform: translateX(60%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
+}
+
 @keyframes sweep {
   from {
     transform: translateX(-110%);
@@ -857,11 +953,21 @@ input {
   position: absolute;
   left: 0;
   top: 0;
+  /*
+   * Hidden until he has been placed. Before that he has no height to stand on —
+   * the sprite has not arrived — and painting him would put him in the top corner
+   * for a frame or two before he drops to the floor.
+   */
+  opacity: 0;
   pointer-events: auto;
   touch-action: none;
   will-change: transform;
   -webkit-user-select: none;
   user-select: none;
+}
+
+.char[data-placed='true'] {
+  opacity: 1;
 }
 
 .char img,

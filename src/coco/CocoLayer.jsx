@@ -230,12 +230,17 @@ function Character({ which, size, onTap }) {
     boxRef.current = { w: el.offsetWidth, h: el.offsetHeight }
     const g = groundY()
     const mx = maxX()
+    // Nothing sensible to compute yet — usually the sprite has not loaded, so the
+    // element still has no height. Leave him hidden rather than standing him in a
+    // corner and moving him a moment later.
     if (g < 40 || mx < 8) return
     const wanted = posRef.current?.x ?? savedRef.current?.x ?? mx - 16
     const x = Math.max(EDGE_GAP_PX, Math.min(mx, wanted))
     const prev = posRef.current
     posRef.current = { x, y: g }
     apply()
+    // He is only shown once he has somewhere to stand; see `.char[data-placed]`.
+    el.dataset.placed = 'true'
     setFlipped(x > window.innerWidth / 2 - 40)
     // Only persist a real move; writing an identical position on every observed
     // resize would spin the store forever.
@@ -245,7 +250,17 @@ function Character({ which, size, onTap }) {
     }
   }, [apply, groundY, maxX, savePos, which])
 
-  // Re-ground on resize, orientation change, and whenever the layout shifts.
+  /*
+   * Re-ground on resize, on rotation, whenever the layout shifts — and whenever he
+   * changes size himself.
+   *
+   * That last one is the important one: watching only the document misses the two
+   * moments his own box changes. The sprite arrives after the first paint, and the
+   * size setting can change it at any time — and since he is positioned by his top
+   * left corner, a taller character keeps its head where it was and puts its feet
+   * through the floor. At a large enough size he ends up below the screen
+   * altogether, which reads as him vanishing.
+   */
   useEffect(() => {
     place()
     const onLayout = () => place()
@@ -254,13 +269,14 @@ function Character({ which, size, onTap }) {
     window.addEventListener('chordroller:layout', onLayout)
     const ro = new ResizeObserver(onLayout)
     ro.observe(document.documentElement)
+    if (rootRef.current) ro.observe(rootRef.current)
     return () => {
       window.removeEventListener('resize', onLayout)
       window.removeEventListener('orientationchange', onLayout)
       window.removeEventListener('chordroller:layout', onLayout)
       ro.disconnect()
     }
-  }, [place])
+  }, [place, size])
 
   useEffect(() => () => cancelAnimationFrame(rafRef.current), [])
 
@@ -428,6 +444,10 @@ function CocoVideo({ size }) {
   const cropRef = useRef(null)
   const framedRef = useRef(false)
   const playingRef = useRef(false)
+  /** Whatever was last drawn — the clip, or the still it falls back to. */
+  const sourceRef = useRef(null)
+  /** Redraw that source at the canvas's current size. */
+  const repaintRef = useRef(null)
 
   useEffect(() => {
     const video = videoRef.current
@@ -467,6 +487,17 @@ function CocoVideo({ size }) {
       ctx.filter = 'none'
       matte(ctx, canvas.width, canvas.height)
       framedRef.current = true
+      sourceRef.current = source
+    }
+
+    repaintRef.current = () => {
+      const source = sourceRef.current
+      if (!source) return
+      paint(
+        source,
+        source.videoWidth || source.naturalWidth,
+        source.videoHeight || source.naturalHeight
+      )
     }
 
     /*
@@ -531,6 +562,20 @@ function CocoVideo({ size }) {
       canvas.removeEventListener('chordroller:react', onPlay)
     }
   }, [])
+
+  /*
+   * Changing the size wipes him off the screen unless he is drawn again.
+   *
+   * Writing width or height on a canvas resets its bitmap — that is the spec, not a
+   * quirk — so the moment the size setting moves, the canvas is blank. While he is
+   * standing still there is no animation running to fill it back in: the draw loop
+   * deliberately holds the first matted frame rather than re-matting it sixty times
+   * a second, so nothing repaints and he simply disappears.
+   */
+  useEffect(() => {
+    framedRef.current = false
+    repaintRef.current?.()
+  }, [size])
 
   const h = Math.round(size * 1.18)
   return (
