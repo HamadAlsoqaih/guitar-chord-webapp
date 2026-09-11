@@ -3,8 +3,8 @@ import { RoundedBox } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { poolOf, useStore } from '../store/useStore.js'
-import { CABINET_D, CABINET_H, MARQUEE_Y, SIGN_Y, cabinetWidth } from './geometry.js'
-import { BLUE, GRAPHITE_DARK, NEON } from './materials.js'
+import { CABINET_D, CABINET_H, MARQUEE_Y, SIGN_H, SIGN_Y, cabinetWidth } from './geometry.js'
+import { BLUE, GRAPHITE, GRAPHITE_DARK, NEON, anodisedGrain } from './materials.js'
 import { additiveMaterial, glowTexture } from './glow.js'
 import { buildMarqueeTexture, buildNeonTexture } from './reelTexture.js'
 
@@ -144,14 +144,33 @@ export function Bulbs({ widthRef, spinningRef, winRef }) {
   )
 }
 
-/** Red neon script above the cabinet, with a flicker on load and a spill onto the metal. */
+/**
+ * The topper: a graphite board bolted to the cabinet's top edge, carrying the neon.
+ *
+ * The sign used to hang in mid-air above the machine with nothing holding it up.
+ * Giving it a real housing that starts exactly where the cabinet ends makes it part
+ * of the machine instead of a caption floating over it.
+ */
 export function NeonSign({ widthRef }) {
   const groupRef = useRef(null)
+  const boardRef = useRef(null)
   const materialRef = useRef(null)
   const lightRef = useRef(null)
   const texture = useMemo(() => buildNeonTexture('Chord Roller'), [])
-  const washMaterial = useMemo(() => additiveMaterial(glowTexture(), NEON, 0.32), [])
+  const washMaterial = useMemo(() => additiveMaterial(glowTexture(), NEON, 0.3), [])
+  const grain = useMemo(() => anodisedGrain(), [])
   const start = useRef(performance.now())
+
+  const boardMaterial = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: GRAPHITE,
+        roughnessMap: grain,
+        roughness: 0.44,
+        metalness: 0.6,
+      }),
+    [grain]
+  )
 
   useEffect(() => () => texture.dispose(), [texture])
 
@@ -167,30 +186,48 @@ export function NeonSign({ widthRef }) {
       level = 0.94 + Math.sin(elapsed * 6.1) * 0.03 + Math.sin(elapsed * 23) * 0.015
     }
     if (materialRef.current) materialRef.current.opacity = level
-    if (lightRef.current) lightRef.current.intensity = level * 3.2
-    if (groupRef.current) {
-      const width = widthRef.current ?? cabinetWidth(3)
-      groupRef.current.scale.x = Math.min(1.25, width / cabinetWidth(3))
-    }
+    if (lightRef.current) lightRef.current.intensity = level * 2.6
+
+    // The board is narrower than the cabinet but grows with it.
+    const width = widthRef.current ?? cabinetWidth(3)
+    const scale = width / cabinetWidth(3)
+    if (boardRef.current) boardRef.current.scale.x = scale
+    if (groupRef.current) groupRef.current.scale.x = Math.min(1.2, scale)
   })
 
+  const boardW = cabinetWidth(3) * 0.82
+
   return (
-    <group ref={groupRef} position={[0, SIGN_Y, CABINET_D / 2 - 0.05]}>
-      <mesh position={[0, 0, -0.01]} material={washMaterial}>
-        <planeGeometry args={[3.9, 1.5]} />
-      </mesh>
-      <mesh>
-        <planeGeometry args={[3.1, 0.78]} />
-        <meshBasicMaterial
-          ref={materialRef}
-          map={texture}
-          transparent
-          toneMapped={false}
-          depthWrite={false}
-        />
-      </mesh>
+    <group position={[0, SIGN_Y, 0]}>
+      {/* The housing, sitting on the cabinet's top edge. */}
+      <RoundedBox
+        ref={boardRef}
+        args={[boardW, SIGN_H, CABINET_D * 0.62]}
+        radius={0.09}
+        smoothness={4}
+        position={[0, 0, CABINET_D * 0.1]}
+        material={boardMaterial}
+      />
+
+      <group ref={groupRef} position={[0, 0.02, CABINET_D * 0.41]}>
+        {/* A soft wash so the neon spills onto the housing around it. */}
+        <mesh position={[0, 0, -0.005]} material={washMaterial}>
+          <planeGeometry args={[3.4, 1.15]} />
+        </mesh>
+        <mesh>
+          <planeGeometry args={[2.75, 0.69]} />
+          <meshBasicMaterial
+            ref={materialRef}
+            map={texture}
+            transparent
+            toneMapped={false}
+            depthWrite={false}
+          />
+        </mesh>
+      </group>
+
       {/* The spill that puts red light back onto the graphite below the sign. */}
-      <pointLight ref={lightRef} color={NEON} distance={4.2} decay={2} position={[0, -0.35, 0.5]} />
+      <pointLight ref={lightRef} color={NEON} distance={4} decay={2} position={[0, -0.42, 0.7]} />
     </group>
   )
 }

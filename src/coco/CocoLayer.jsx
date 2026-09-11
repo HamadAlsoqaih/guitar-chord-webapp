@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import {
   BUBBLE_HOLD_MS,
   BUBBLE_TYPE_MS,
@@ -20,6 +20,7 @@ import {
 } from '../store/defaults.js'
 import { getLeverRect, pullLever } from '../machine/leverBridge.js'
 import { useStore } from '../store/useStore.js'
+import { filledBubble, paintBubble } from './bubbleArt.js'
 import { findCrop, matte } from './videoMatte.js'
 
 const asset = (file) => `${import.meta.env.BASE_URL}assets/${file}`
@@ -31,38 +32,136 @@ const PIXEL_FRAMES = [asset('koko-f1.png'), asset('koko-f2.png')]
 /** Base pixel size of each character at 100%. */
 const BASE = { video: 150, pixel: 120 }
 
-function useBubble() {
-  const [text, setText] = useState('')
-  const timers = useRef({ type: 0, hold: 0 })
+/**
+ * Types a line into the balloon.
+ *
+ * The text is written straight to the DOM rather than held in React state. Typing
+ * a 38-character line through setState re-renders the character 38 times, and the
+ * letters arrive in visible jerks whenever the main thread is busy — which, next to
+ * a WebGL scene, is most of the time. Writing textContent costs nothing and the
+ * line fills smoothly.
+ */
+function useBubble(boxRef, textRef) {
+  const timers = useRef({ raf: 0, hold: 0 })
 
-  const say = useCallback((full) => {
-    clearInterval(timers.current.type)
+  const stop = useCallback(() => {
+    cancelAnimationFrame(timers.current.raf)
     clearTimeout(timers.current.hold)
-    if (!full) {
-      setText('')
-      return
-    }
-    let i = 0
-    setText('')
-    timers.current.type = setInterval(() => {
-      i += 1
-      setText(full.slice(0, i))
-      if (i >= full.length) {
-        clearInterval(timers.current.type)
-        timers.current.hold = setTimeout(() => setText(''), BUBBLE_HOLD_MS)
-      }
-    }, BUBBLE_TYPE_MS)
   }, [])
 
-  useEffect(
-    () => () => {
-      clearInterval(timers.current.type)
-      clearTimeout(timers.current.hold)
+  const say = useCallback(
+    (full) => {
+      stop()
+      const box = boxRef.current
+      const node = textRef.current
+      if (!box || !node) return
+
+      if (!full) {
+        box.dataset.visible = 'false'
+        return
+      }
+
+      node.textContent = ''
+      box.dataset.visible = 'true'
+
+      // Character count comes from elapsed time, not from counting ticks. A timer
+      // that fires late — and next to a WebGL scene it will — would otherwise
+      // stretch the line out for as long as the main thread was busy. This way the
+      // line always finishes in the same wall-clock time and simply shows fewer
+      // intermediate steps on a slow frame.
+      const started = performance.now()
+      const total = full.length * BUBBLE_TYPE_MS
+      let shown = -1
+
+      const step = (now) => {
+        const chars = Math.min(full.length, Math.floor((now - started) / BUBBLE_TYPE_MS))
+        if (chars !== shown) {
+          shown = chars
+          node.textContent = full.slice(0, chars)
+        }
+        if (now - started < total) {
+          timers.current.raf = requestAnimationFrame(step)
+        } else {
+          node.textContent = full
+          timers.current.hold = setTimeout(() => {
+            box.dataset.visible = 'false'
+          }, BUBBLE_HOLD_MS)
+        }
+      }
+      timers.current.raf = requestAnimationFrame(step)
     },
-    []
+    [boxRef, stop, textRef]
   )
 
-  return [text, say]
+  useEffect(() => stop, [stop])
+
+  return say
+}
+
+/**
+ * The balloon art: filled once per page load — both characters share the one copy —
+ * and then drawn into each character's own canvas at the size it is shown.
+ */
+function BubbleArt({ box, flipped }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    let live = true
+    filledBubble(BUBBLE_SRC).then((art) => {
+      if (live) paintBubble(ref.current, art, box)
+    })
+    return () => {
+      live = false
+    }
+  }, [box])
+  return <canvas className="bubble-img" ref={ref} data-flipped={flipped} />
+}
+
+/**
+ * The balloon.
+ *
+ * It is a sibling of the character, not a child, and it carries its own position.
+ * Nesting it inside a character that is itself moved by a transform put it outside
+ * the bounds of the character's compositing layer, and Chromium then stopped
+ * rastering it the moment the typing loop finished repainting the layer every
+ * frame — the balloon simply vanished while every computed style still said it was
+ * visible. As its own element it is laid out and rastered on its own terms.
+ *
+ * The wrapper carries only the position; the show-and-hide transition lives on the
+ * inner element, so the two transforms never fight over the same property.
+ */
+const Bubble = forwardRef(function Bubble({ size, flipped, textRef }, ref) {
+  const box = Math.round(size * 1.22)
+  return (
+    <div
+      className="bubble"
+      ref={ref}
+      /*
+       * data-visible is deliberately NOT set here. say() writes it imperatively,
+       * and declaring it in JSX too means any re-render — a drag starting, the
+       * flip side changing — silently resets it and the balloon vanishes
+       * mid-sentence. The CSS defaults to hidden, so an absent attribute is safe.
+       */
+      style={{ width: box, height: box }}
+    >
+      <div className="bubble-in" style={{ transformOrigin: flipped ? '75% 88%' : '25% 88%' }}>
+        <BubbleArt box={box} flipped={flipped} />
+        <div
+          className="bubble-text rtl"
+          ref={textRef}
+          style={{ fontSize: Math.max(11, Math.round(box * 0.068)) }}
+        />
+      </div>
+    </div>
+  )
+})
+
+/** Where the balloon sits for a character at `x, y`: above him, tail on his head. */
+export function bubbleOffset(size, flipped) {
+  const box = Math.round(size * 1.22)
+  return {
+    dx: Math.round(size / 2 - box * (flipped ? 0.75 : 0.25)),
+    dy: Math.round(size * 0.22 - box),
+  }
 }
 
 /**
@@ -76,8 +175,13 @@ function Character({ which, size, onTap }) {
   const posRef = useRef(null)
   const rotRef = useRef(0)
   const rafRef = useRef(0)
-  const [bubble, say] = useBubble()
+  const bubbleRef = useRef(null)
+  const textRef = useRef(null)
+  const say = useBubble(bubbleRef, textRef)
   const [dragging, setDragging] = useState(false)
+  const [flipped, setFlipped] = useState(false)
+  // Read by apply() on every animation frame, so it must not go through a render.
+  const offsetRef = useRef(bubbleOffset(size, false))
 
   const pickLine = useStore((s) => s.pickLine)
   const savePos = useStore((s) => s.setCharPos)
@@ -90,7 +194,20 @@ function Character({ which, size, onTap }) {
     const p = posRef.current
     if (!el || !p) return
     el.style.transform = `translate3d(${p.x}px, ${p.y}px, 0) rotate(${rotRef.current}deg)`
+    // The balloon rides along, but stays upright: it is a thought, not a hat.
+    const bubble = bubbleRef.current
+    if (bubble) {
+      const { dx, dy } = offsetRef.current
+      bubble.style.transform = `translate3d(${p.x + dx}px, ${p.y + dy}px, 0)`
+    }
   }, [])
+
+  // Flipping sides or resizing moves the balloon's anchor; re-place it at once so
+  // it never lags a frame behind the character it belongs to.
+  useEffect(() => {
+    offsetRef.current = bubbleOffset(size, flipped)
+    apply()
+  }, [apply, flipped, size])
 
   /** The floor: just above the nav bar. */
   const groundY = useCallback(() => {
@@ -118,6 +235,7 @@ function Character({ which, size, onTap }) {
     const prev = posRef.current
     posRef.current = { x, y: g }
     apply()
+    setFlipped(x > window.innerWidth / 2 - 40)
     // Only persist a real move; writing an identical position on every observed
     // resize would spin the store forever.
     if (!prev || Math.abs(prev.x - x) > 0.5 || Math.abs(prev.y - g) > 0.5) {
@@ -242,11 +360,13 @@ function Character({ which, size, onTap }) {
       }
       if (!moved) return
       cancelAnimationFrame(rafRef.current)
+      const nx = Math.max(EDGE_GAP_PX, Math.min(maxX(), ev.clientX - offX))
       posRef.current = {
-        x: Math.max(EDGE_GAP_PX, Math.min(maxX(), ev.clientX - offX)),
+        x: nx,
         y: Math.max(EDGE_GAP_PX, Math.min(groundY(), ev.clientY - offY)),
       }
       apply()
+      setFlipped(nx > window.innerWidth / 2 - 40)
     }
 
     const up = (ev) => {
@@ -286,26 +406,17 @@ function Character({ which, size, onTap }) {
   }
 
   return (
-    <div
-      className="char"
-      ref={rootRef}
-      onPointerDown={onPointerDown}
-      style={{ width: size, cursor: dragging ? 'grabbing' : 'grab' }}
-    >
-      {bubble && (
-        <div
-          className="bubble rtl"
-          style={{
-            backgroundImage: `url(${BUBBLE_SRC})`,
-            left: '50%',
-            transform: 'translateX(-50%)',
-          }}
-        >
-          {bubble}
-        </div>
-      )}
-      {which === 'koko' ? <CocoVideo size={size} /> : <PixelSprite size={size} />}
-    </div>
+    <>
+      <div
+        className="char"
+        ref={rootRef}
+        onPointerDown={onPointerDown}
+        style={{ width: size, cursor: dragging ? 'grabbing' : 'grab' }}
+      >
+        {which === 'koko' ? <CocoVideo size={size} /> : <PixelSprite size={size} />}
+      </div>
+      <Bubble ref={bubbleRef} textRef={textRef} size={size} flipped={flipped} />
+    </>
   )
 }
 

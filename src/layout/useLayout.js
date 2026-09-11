@@ -11,6 +11,13 @@ import { useEffect } from 'react'
  * never write geometry into React state (which would re-render on every frame
  * of an orientation change).
  */
+/**
+ * Breathing room between the machine and the strum card. It is not just a minimum:
+ * because the machine is centred on navTop/2, every pixel reserved here costs the
+ * machine two — so it has to be part of the height solve, not an afterthought.
+ */
+const MACHINE_CARD_GAP = 30
+
 export function useLayout({ areaRef, belowRef, navRef, reelCount, tab }) {
   useEffect(() => {
     if (tab !== 'home') return undefined
@@ -33,14 +40,14 @@ export function useLayout({ areaRef, belowRef, navRef, reelCount, tab }) {
 
       // Centring the machine on navTop/2 bounds its height from both directions.
       const fitAbove = navTop - 2 * areaTop
-      const fitBelow = navTop - 2 * (belowH + 10)
+      const fitBelow = navTop - 2 * (belowH + MACHINE_CARD_GAP)
       let h = Math.min(fitAbove, fitBelow, areaW / aspect)
       h = Math.max(180, h)
       let w = Math.min(areaW, h * aspect)
       h = Math.min(h, w / aspect)
 
       const top = Math.max(0, navTop / 2 - h / 2 - areaTop)
-      const gap = Math.max(8, (navTop - (areaTop + top + h) - belowH) / 2)
+      const gap = Math.max(MACHINE_CARD_GAP, (navTop - (areaTop + top + h) - belowH) / 2)
 
       const root = document.documentElement
       root.style.setProperty('--machine-top', `${Math.round(top)}px`)

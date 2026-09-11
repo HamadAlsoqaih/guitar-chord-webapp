@@ -1,4 +1,4 @@
-import { iPadContext, launch } from './browser.mjs'
+import { compositedShot, iPadContext, launch } from './browser.mjs'
 
 /** Load the app, wait for the 3D machine, and save a screenshot. */
 const url = process.env.APP_URL || 'http://localhost:5173/guitar-chord-webapp/'
@@ -22,6 +22,6 @@ console.log(
   '| fallback reels:',
   (await page.$$('.fb-reel')).length
 )
-await page.screenshot({ path: out })
+if (!(await compositedShot(ctx, page, out))) await page.screenshot({ path: out })
 console.log('wrote', out)
 await browser.close()

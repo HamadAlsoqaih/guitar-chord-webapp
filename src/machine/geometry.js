@@ -15,7 +15,9 @@ export const WINDOW_H = 1.05
 /** Vertical placement of the parts, relative to the cabinet centre. */
 export const REEL_Y = 0.12
 export const MARQUEE_Y = -0.92
-export const SIGN_Y = 1.58
+/** The sign is a topper bolted to the cabinet, so it starts where the cabinet ends. */
+export const SIGN_H = 0.74
+export const SIGN_Y = CABINET_H / 2 + SIGN_H / 2 - 0.04
 /** Depth at which the drums' front surface sits, just behind the glass. */
 export const DRUM_FRONT_Z = 0.3
 export const GLASS_Z = 0.5

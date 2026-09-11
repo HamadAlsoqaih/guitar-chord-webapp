@@ -163,3 +163,36 @@ export async function dragReel(page, index, { dy = -120, steps = 12 } = {}) {
     { index, dy, steps }
   )
 }
+
+/**
+ * Capture what the compositor actually put on screen.
+ *
+ * page.screenshot() forces a fresh raster, and next to a WebGL canvas that keeps
+ * the compositor busy some layers come back blank — DOM overlays above the machine
+ * vanish from the capture while the page itself is drawing them perfectly. The
+ * screencast stream is the frames the browser composited, so what it shows is what
+ * a person would see.
+ */
+export async function compositedShot(context, page, path, { settle = 600 } = {}) {
+  const cdp = await context.newCDPSession(page)
+  let latest = null
+  cdp.on('Page.screencastFrame', async (f) => {
+    latest = f.data
+    try {
+      await cdp.send('Page.screencastFrameAck', { sessionId: f.sessionId })
+    } catch {
+      /* the cast is already stopped */
+    }
+  })
+  await cdp.send('Page.startScreencast', { format: 'png', everyNthFrame: 1 })
+  const started = Date.now()
+  while (!latest || Date.now() - started < settle) {
+    await new Promise((r) => setTimeout(r, 100))
+    if (Date.now() - started > settle + 4000) break
+  }
+  await cdp.send('Page.stopScreencast').catch(() => {})
+  if (!latest) return false
+  const { writeFile } = await import('node:fs/promises')
+  await writeFile(path, Buffer.from(latest, 'base64'))
+  return true
+}
