@@ -17,7 +17,7 @@ export const TIERS = {
   high: {
     name: 'high',
     dpr: 2,
-    dprFloor: 1.4,
+    dprFloor: 1.5,
     /** Refraction buffer, as a fraction of the canvas. */
     glass: 1,
     chroma: true,
@@ -30,20 +30,25 @@ export const TIERS = {
   },
   medium: {
     name: 'medium',
-    dpr: 1.75,
-    dprFloor: 1.2,
-    glass: 0.7,
+    // Still every device pixel. Resolution is what the chords are read at, so it
+    // is the last thing to give up — the savings here come from the buffer behind
+    // the glass and from dropping multisampling, neither of which anyone can see.
+    dpr: 2,
+    dprFloor: 1.4,
+    glass: 0.75,
     chroma: true,
     sweep: 0.42,
-    antialias: false,
+    // Kept on. This tier is where most tablets land, and the neon and the lamp
+    // rims are exactly the kind of thin bright edge that crawls without it.
+    antialias: true,
     envResolution: 128,
     shadowResolution: 256,
-    idleFps: 24,
+    idleFps: 30,
   },
   low: {
     name: 'low',
-    dpr: 1.25,
-    dprFloor: 1,
+    dpr: 1.5,
+    dprFloor: 1.25,
     glass: 0.5,
     // One texture fetch through the pane instead of three.
     chroma: false,
@@ -51,7 +56,7 @@ export const TIERS = {
     antialias: false,
     envResolution: 64,
     shadowResolution: 128,
-    idleFps: 20,
+    idleFps: 24,
   },
 }
 
@@ -73,19 +78,23 @@ function fromQuery() {
 function detect() {
   const asked = fromQuery()
   if (asked) return asked
-  if (typeof navigator === 'undefined') return 'medium'
+  if (typeof navigator === 'undefined') return 'high'
 
-  const cores = navigator.hardwareConcurrency || 2
+  const cores = navigator.hardwareConcurrency || 4
   // Only Chromium reports this; absent is not evidence of anything either way.
   const memory = navigator.deviceMemory || 0
-  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
-  const pixels = typeof window !== 'undefined' ? window.innerWidth * window.innerHeight * dpr * dpr : 0
 
+  /*
+   * Start high and come down only on real evidence.
+   *
+   * The temptation is to read a modest core count as a slow device, but a tablet
+   * with four cores and a good GPU renders this scene without noticing, and
+   * demoting it costs resolution on the one thing people are here to read. So the
+   * only things that demote are a genuinely small machine, and after that it is
+   * PerformanceMonitor's job — it measures actual frames rather than guessing from
+   * a spec sheet, and walks the resolution down within whatever tier we picked.
+   */
   if (cores <= 2 || (memory && memory <= 2)) return 'low'
-  // A big retina canvas on a modest chip is the combination that stutters: it is
-  // the pixel count that hurts, not the core count on its own.
-  if (cores <= 4 && pixels > 2.2e6) return 'low'
   if (cores <= 4 || (memory && memory <= 4)) return 'medium'
-  if (pixels > 6e6 && cores <= 6) return 'medium'
   return 'high'
 }

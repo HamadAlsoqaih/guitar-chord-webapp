@@ -10,7 +10,7 @@ import { Cabinet, LeverMount } from './Cabinet.jsx'
 import { Lever3D } from './Lever3D.jsx'
 import { Reels } from './Reels.jsx'
 import { Bulbs, MarqueePlate, NeonSign } from './Trim.jsx'
-import { CABINET_H, LEVER_OVERHANG, SIGN_Y, cabinetWidth } from './geometry.js'
+import { CABINET_D, CABINET_H, LEVER_OVERHANG, SIGN_H, SIGN_Y, cabinetWidth } from './geometry.js'
 import { cellsAround } from './reelTexture.js'
 import { getTilt, startPointerTilt } from './tilt.js'
 import { poke } from './activity.js'
@@ -28,7 +28,22 @@ const prefersReducedMotion = () =>
  */
 const CONTENT_TOP = SIGN_Y + 0.4
 const CONTENT_BOTTOM = -CABINET_H / 2
-const SCENE_H = (CONTENT_TOP - CONTENT_BOTTOM) * 1.04
+/*
+ * Headroom around the machine, and the reason the camera can push in at all.
+ *
+ * The pull dollies the camera forward, which magnifies everything in frame. Framed
+ * to the machine's exact extent there is nowhere for that to go, so the sign loses
+ * its top and the cabinet its feet at the moment the roll starts — which is the
+ * moment everyone is looking. The margin is the room the push moves into, and the
+ * push is derived from it below rather than guessed, so the two cannot drift apart.
+ */
+const FRAME_MARGIN = 1.07
+const SCENE_H = (CONTENT_TOP - CONTENT_BOTTOM) * FRAME_MARGIN
+/**
+ * How far the pull dollies in, as a fraction of the fitted distance. Kept under the
+ * margin above so the machine grows into reserved room and never past it.
+ */
+const PUSH_FRACTION = 0.04
 /** Vertical centre of that extent; the camera looks here, not at the origin. */
 const FOCUS_Y = (CONTENT_TOP + CONTENT_BOTTOM) / 2
 const FOV = 24
@@ -45,6 +60,8 @@ export function Scene() {
   const spinningRef = useRef(false)
   const winRef = useRef(-9999)
   const cameraOffset = useRef(0)
+  /** Written by FitCamera; the push is a fraction of it, so it scales with the framing. */
+  const baseZ = useRef(10)
   const jolt = useRef({ y: 0, v: 0 })
   const rootRef = useRef(null)
 
@@ -75,7 +92,9 @@ export function Scene() {
     if (reduce) return
     gsap.killTweensOf(cameraOffset)
     gsap.to(cameraOffset, {
-      current: -0.55,
+      // Exactly the margin, so the machine grows into the room reserved for it and
+      // never a pixel further.
+      current: -PUSH_FRACTION * (baseZ.current - CABINET_D / 2),
       duration: 0.85,
       ease: 'power2.out',
       onComplete: () => {
@@ -126,13 +145,65 @@ export function Scene() {
     root.rotation.x += (tiltX - root.rotation.x) * Math.min(1, delta * 4)
   })
 
+  /*
+   * The machine's silhouette in screen pixels, for the browser tests.
+   *
+   * Whether the framing still holds while the camera pushes in is not something to
+   * judge from a screenshot. This projects the parts that have to stay in frame —
+   * the cabinet, the sign above it and the lever ball out to the left — rather than
+   * the scene's bounding box, which is inflated by the glow quads and the light
+   * wash around the neon and would never agree with what anyone can see.
+   */
+  const gl = useThree((s) => s.gl)
+  const camera = useThree((s) => s.camera)
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const point = new THREE.Vector3()
+    window.__chordRollerFrame = () => {
+      const root = rootRef.current
+      if (!root) return null
+      const { reelCount: n } = useStore.getState()
+      const halfW = cabinetWidth(n) / 2
+      const xs = [-(halfW + LEVER_OVERHANG * 0.62), halfW]
+      const ys = [-CABINET_H / 2, SIGN_Y + SIGN_H / 2]
+      const zs = [-CABINET_D / 2, CABINET_D / 2]
+      const rect = gl.domElement.getBoundingClientRect()
+      let top = Infinity
+      let bottom = -Infinity
+      let left = Infinity
+      let right = -Infinity
+      for (const x of xs) {
+        for (const y of ys) {
+          for (const z of zs) {
+            point.set(x, y, z)
+            root.localToWorld(point)
+            point.project(camera)
+            const px = rect.left + ((point.x + 1) / 2) * rect.width
+            const py = rect.top + ((1 - point.y) / 2) * rect.height
+            top = Math.min(top, py)
+            bottom = Math.max(bottom, py)
+            left = Math.min(left, px)
+            right = Math.max(right, px)
+          }
+        }
+      }
+      return {
+        machine: { top, bottom, left, right },
+        canvas: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
+      }
+    }
+    return () => {
+      delete window.__chordRollerFrame
+    }
+  }, [camera, gl])
+
   // Further out from the flank, on a longer bracket: the arm reads as a handle you
   // reach for rather than something tucked against the body.
   const leverX = -(cabinetWidth(reelCount) / 2 + 0.66)
 
   return (
     <>
-      <FitCamera reelCount={reelCount} offsetRef={cameraOffset} />
+      <FitCamera reelCount={reelCount} offsetRef={cameraOffset} baseZRef={baseZ} />
       <Lighting dark={dark} />
 
       <group ref={rootRef}>
@@ -163,19 +234,28 @@ export function Scene() {
  * Frames the machine for the current canvas. The box is wide and short, so which
  * dimension binds changes with the reel count and the orientation.
  */
-function FitCamera({ reelCount, offsetRef }) {
+function FitCamera({ reelCount, offsetRef, baseZRef }) {
   const camera = useThree((s) => s.camera)
   const size = useThree((s) => s.size)
-  const baseZ = useRef(10)
+  const baseZ = baseZRef
 
   useEffect(() => {
     // Reserve the lever's reach on both sides so the cabinet stays screen-centred.
-    const width = cabinetWidth(reelCount) + LEVER_OVERHANG * 2
+    // The same margin sideways: at six reels the width is what binds, and without it
+    // the push would crop the lever and the cabinet's flanks instead of the sign.
+    const width = (cabinetWidth(reelCount) + LEVER_OVERHANG * 2) * FRAME_MARGIN
     const aspect = size.width / Math.max(1, size.height)
     const vFov = (FOV * Math.PI) / 180
     const forHeight = SCENE_H / 2 / Math.tan(vFov / 2)
     const forWidth = width / 2 / Math.tan(vFov / 2) / aspect
-    baseZ.current = Math.max(forHeight, forWidth)
+    /*
+     * The machine is a box, not a picture. Its front face stands half a unit nearer
+     * than the plane this fit is solved for, and at this distance that magnifies it
+     * by around eight per cent — enough on its own to push the sign off the top of
+     * the canvas. Standing off by the cabinet's own depth is what makes the framing
+     * mean what it says.
+     */
+    baseZ.current = Math.max(forHeight, forWidth) + CABINET_D / 2
 
     camera.fov = FOV
     camera.near = 0.5
@@ -183,13 +263,20 @@ function FitCamera({ reelCount, offsetRef }) {
     camera.updateProjectionMatrix()
   }, [camera, reelCount, size])
 
+  const target = useMemo(() => new THREE.Vector3(), [])
+
   useFrame((_, delta) => {
-    // ~8° above centre, looking slightly down at the machine.
     const z = baseZ.current + (offsetRef.current ?? 0)
     // ~8° above the machine's visual centre, which sits above the cabinet's middle
     // because the sign occupies the top of the frame.
     const focus = 0.3
-    const target = new THREE.Vector3(0, focus + z * 0.14, z)
+    /*
+     * Height comes from the resting distance, not the current one, so the pull is a
+     * straight dolly in. Tying it to the live distance tilts the camera as it moves
+     * — the view swings down, the cabinet's feet leave the frame at the bottom, and
+     * the margin reserved above the sign is spent on nothing.
+     */
+    target.set(0, focus + baseZ.current * 0.14, z)
     camera.position.lerp(target, Math.min(1, delta * 5))
     camera.lookAt(0, focus, 0)
   })

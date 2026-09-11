@@ -197,21 +197,33 @@ export function NeonSign({ widthRef }) {
 
   const boardW = cabinetWidth(3) * 0.82
 
+  /*
+   * The tubes stand proud of the housing rather than sitting flush against it.
+   *
+   * Flush means coplanar, and coplanar means the depth test decides pixel by pixel
+   * which of the two surfaces is in front — so the sign comes out patched with
+   * rectangles of bare housing and a ghost of itself, and it changes as the camera
+   * moves. Real neon stands off its backing board anyway.
+   */
+  const housingDepth = CABINET_D * 0.62
+  const housingZ = CABINET_D * 0.1
+  const tubeStandoff = housingZ + housingDepth / 2 + 0.04
+
   return (
     <group position={[0, SIGN_Y, 0]}>
       {/* The housing, sitting on the cabinet's top edge. */}
       <RoundedBox
         ref={boardRef}
-        args={[boardW, SIGN_H, CABINET_D * 0.62]}
+        args={[boardW, SIGN_H, housingDepth]}
         radius={0.09}
         smoothness={4}
-        position={[0, 0, CABINET_D * 0.1]}
+        position={[0, 0, housingZ]}
         material={boardMaterial}
       />
 
-      <group ref={groupRef} position={[0, 0.02, CABINET_D * 0.41]}>
+      <group ref={groupRef} position={[0, 0.02, tubeStandoff]}>
         {/* A soft wash so the neon spills onto the housing around it. */}
-        <mesh position={[0, 0, -0.005]} material={washMaterial}>
+        <mesh position={[0, 0, -0.012]} material={washMaterial}>
           <planeGeometry args={[3.4, 1.15]} />
         </mesh>
         <mesh>

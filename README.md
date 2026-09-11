@@ -57,6 +57,19 @@ layer, so it stays sharp for a fraction of the cost.
 frame, which paints a rectangle over the page wherever the canvas should be
 transparent; every emitter here is small enough to carry its own halo.
 
+**Framing** reserves room for the push. The pull dollies the camera in, which
+magnifies everything in frame, and the fit has to account for the cabinet's own
+depth — its front face is half a unit nearer than the plane the fit is solved for,
+worth about eight per cent on its own. `npm run test:framing` projects the machine's
+silhouette and asserts it never leaves the canvas, at both orientations and at three
+and six reels; the touch suite checks the same thing through a whole pull.
+
+**Coplanar surfaces are a bug, not a shortcut.** The neon stood flush against its
+housing, so the depth test decided per pixel which of the two was in front and the
+sign came out patched with rectangles of bare metal and a ghost of itself — only on
+some devices, and only while the camera moved. The tubes now stand off the board,
+the way real neon does.
+
 ## Performance
 
 Measured with `window.__r3fInfo` (draw calls per frame, whole frame including the

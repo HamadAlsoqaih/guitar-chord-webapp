@@ -29,6 +29,34 @@ const check = (name, ok, detail = '') => {
 const chords = async (page) => (await machineState(page)).chords
 const spinning = async (page) => (await machineState(page)).spinning
 
+/**
+ * How far the machine came to leaving the canvas, in pixels, over `samples` reads.
+ * Negative is clearance; positive means part of it was cropped.
+ */
+async function worstOverflow(page, samples = 8, gap = 300) {
+  let worst = { side: 'none', over: -Infinity }
+  for (let i = 0; i < samples; i++) {
+    const frame = await page.evaluate(() => {
+      const f = window.__chordRollerFrame?.()
+      if (!f) return null
+      return {
+        top: f.canvas.top - f.machine.top,
+        bottom: f.machine.bottom - f.canvas.bottom,
+        left: f.canvas.left - f.machine.left,
+        right: f.machine.right - f.canvas.right,
+      }
+    })
+    if (frame) {
+      for (const [side, over] of Object.entries(frame)) {
+        if (over > worst.over) worst = { side, over }
+      }
+    }
+    await new Promise((r) => setTimeout(r, gap))
+  }
+  return worst
+}
+
+
 async function run() {
   await mkdir(OUT, { recursive: true })
   const browser = await launch()
@@ -56,7 +84,15 @@ async function run() {
   await dragLever(page, { dy: 110 })
   await wait(400)
   check('reels spinning after pull', await spinning(page))
-  await wait(3400)
+  // The pull dollies the camera in, which magnifies everything in frame. Watch the
+  // whole push and make sure the machine never grows past the canvas.
+  const framing = await worstOverflow(page, 10, 300)
+  check(
+    'machine stays in frame through the push',
+    framing.over < 0,
+    `${framing.side} ${framing.over.toFixed(1)}px`
+  )
+  await wait(1400)
   check('reels settled', !(await spinning(page)))
   check('three results on the payline', (await chords(page)).length === 3)
   await page.screenshot({ path: `${OUT}/02-after-spin.png` })

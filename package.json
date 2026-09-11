@@ -7,7 +7,8 @@
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview --host",
-    "test": "node tests/drive.mjs"
+    "test": "node tests/drive.mjs",
+    "test:framing": "node tests/framing.mjs"
   },
   "dependencies": {
     "@react-spring/three": "^9.7.5",
