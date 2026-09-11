@@ -60,14 +60,18 @@ export default function App() {
     <div className="app">
       <div className="page">
         <Header />
-        {tab === 'home' ? (
-          <>
-            <Practice ref={areaRef} />
-            <StrumCard ref={belowRef} />
-          </>
-        ) : (
-          <Settings />
-        )}
+        {/*
+         * The practice page stays mounted while Settings is open, hidden rather
+         * than unmounted. Tearing it down takes the WebGL context with it, and a
+         * browser only grants a handful before it starts dropping the oldest —
+         * which on Safari leaves a dead canvas and the DOM machine in its place
+         * for the rest of the session. Keeping it also saves rebuilding the whole
+         * scene, shaders and printed strips included, every time someone looks at
+         * their chord list. Nothing renders while it is hidden.
+         */}
+        <Practice ref={areaRef} hidden={tab !== 'home'} />
+        <StrumCard ref={belowRef} hidden={tab !== 'home'} />
+        {tab !== 'home' && <Settings />}
       </div>
       <TabBar ref={navRef} />
       <CocoLayer />

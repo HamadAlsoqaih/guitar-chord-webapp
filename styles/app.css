@@ -29,6 +29,16 @@ body {
   touch-action: manipulation;
 }
 
+/*
+ * `hidden` has to win over the display rules below it. The practice page is hidden
+ * rather than unmounted while Settings is open, and `.below` sets display: flex,
+ * which would otherwise override the user agent's [hidden] rule and leave the
+ * strum card on screen underneath the settings list.
+ */
+[hidden] {
+  display: none !important;
+}
+
 button {
   font: inherit;
   color: inherit;
@@ -459,6 +469,13 @@ input {
 }
 
 .group {
+  /*
+   * Never shrink. The settings list is a scrolling flex column, and a flex item
+   * gives up its height before the container agrees to scroll — so on a short
+   * screen the cards were being squeezed and, since they clip their overflow, rows
+   * were cut off mid-sentence instead of the list simply scrolling.
+   */
+  flex: 0 0 auto;
   width: min(760px, 100%);
   background: color-mix(in srgb, var(--panel) 88%, transparent);
   backdrop-filter: blur(18px);

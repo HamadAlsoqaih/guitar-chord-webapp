@@ -274,6 +274,34 @@ async function run() {
   await page.setViewportSize(IPAD_LANDSCAPE)
   await wait(900)
 
+  console.log('\nTab switching')
+  /*
+   * Leaving the practice page used to unmount the machine, and with it the WebGL
+   * context. A browser only keeps a few alive, so after a handful of visits to
+   * settings it starts dropping them — which is how people ended up looking at the
+   * DOM machine for the rest of the session. Marking the canvas proves the same one
+   * survives, context and all.
+   */
+  await page.evaluate(() => {
+    document.querySelector('.machine-slot canvas').dataset.mark = 'original'
+  })
+  for (let i = 0; i < 4; i++) {
+    await page.click('.nav button:last-child')
+    await wait(220)
+    await page.click('.nav button:first-child')
+    await wait(320)
+  }
+  const survived = await page.evaluate(() => {
+    const canvas = document.querySelector('.machine-slot canvas')
+    return {
+      same: canvas?.dataset.mark === 'original',
+      fallbacks: document.querySelectorAll('.fb-reel').length,
+      ready: window.__chordRoller.state().ready3d,
+    }
+  })
+  check('the machine survives four trips to settings', survived.same && survived.ready)
+  check('no DOM fallback after coming back', survived.fallbacks === 0)
+
   console.log('\nPersistence')
   await page.reload({ waitUntil: 'networkidle' })
   await waitFor3d(page)

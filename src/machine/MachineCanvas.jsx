@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { PerformanceMonitor } from '@react-three/drei'
 import * as THREE from 'three'
@@ -103,25 +103,67 @@ function FrameGovernor() {
   return null
 }
 
+/**
+ * Keeps the app usable if the browser takes the WebGL context away.
+ *
+ * It does that on its own account — too many contexts alive, the tab backgrounded
+ * on a device under memory pressure — and a canvas whose context has gone is a
+ * blank rectangle where the machine used to be. Handing ready3d back puts the DOM
+ * machine on screen instead, which plays exactly the same, and the 3D machine comes
+ * back by itself when the browser restores the context.
+ */
+function ContextGuard({ onLost, onRestored }) {
+  const gl = useThree((s) => s.gl)
+  useEffect(() => {
+    const canvas = gl.domElement
+    const lost = (event) => {
+      // Without this the context is gone for good; with it the browser may restore.
+      event.preventDefault()
+      onLost()
+    }
+    canvas.addEventListener('webglcontextlost', lost)
+    canvas.addEventListener('webglcontextrestored', onRestored)
+    return () => {
+      canvas.removeEventListener('webglcontextlost', lost)
+      canvas.removeEventListener('webglcontextrestored', onRestored)
+    }
+  }, [gl, onLost, onRestored])
+  return null
+}
+
 export default function MachineCanvas() {
   const setReady3d = useStore((s) => s.setReady3d)
+  const onPractice = useStore((s) => s.tab === 'home')
   const q = useRef(tier()).current
   const [dpr, setDpr] = useState(q.dpr)
 
-  // Stop rendering entirely when the app is not on screen.
-  const [frameloop, setFrameloop] = useState('demand')
+  // Stop rendering entirely when the machine is not on screen — the app in the
+  // background, or the settings page in front of it.
+  const [awake, setAwake] = useState(true)
   useEffect(() => {
     const onVisibility = () => {
-      setFrameloop(document.hidden ? 'never' : 'demand')
+      setAwake(!document.hidden)
       if (!document.hidden) poke(600)
     }
     document.addEventListener('visibilitychange', onVisibility)
     return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [])
+  const frameloop = awake && onPractice ? 'demand' : 'never'
+
+  // Coming back to the practice page: draw at once rather than at the idle trickle.
+  useEffect(() => {
+    if (onPractice) poke(900)
+  }, [onPractice])
 
   useEffect(() => {
     setReady3d(true)
     return () => setReady3d(false)
+  }, [setReady3d])
+
+  const onLost = useCallback(() => setReady3d(false), [setReady3d])
+  const onRestored = useCallback(() => {
+    setReady3d(true)
+    poke(900)
   }, [setReady3d])
 
   return (
@@ -144,6 +186,7 @@ export default function MachineCanvas() {
       }}
     >
       <RenderStats />
+      <ContextGuard onLost={onLost} onRestored={onRestored} />
       <FrameGovernor />
       <PerformanceMonitor
         // Resolution is the first thing to give: a slightly softer frame beats a

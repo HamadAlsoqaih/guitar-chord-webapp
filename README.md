@@ -57,6 +57,14 @@ layer, so it stays sharp for a fraction of the cost.
 frame, which paints a rectangle over the page wherever the canvas should be
 transparent; every emitter here is small enough to carry its own halo.
 
+**The WebGL context is created once and kept.** The practice page is hidden, not
+unmounted, while settings is open: a browser keeps only a handful of contexts alive
+and starts dropping the oldest, which is how a machine turns into a blank rectangle
+— or, once the probe for WebGL2 support starts failing, into the DOM machine for the
+rest of the session. Nothing renders while it is hidden, the context probe hands its
+own context straight back, and if a context is lost anyway the DOM machine takes
+over until the browser restores it.
+
 **Framing** reserves room for the push. The pull dollies the camera in, which
 magnifies everything in frame, and the fit has to account for the cabinet's own
 depth — its front face is half a unit nearer than the plane the fit is solved for,

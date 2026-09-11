@@ -4,7 +4,7 @@ import { useStore } from '../store/useStore.js'
 
 const REST_PATTERN = { cells: ['R', 'R', 'R', 'R', 'R', 'R', 'R', 'R'] }
 
-export const StrumCard = forwardRef(function StrumCard(_props, ref) {
+export const StrumCard = forwardRef(function StrumCard({ hidden }, ref) {
   const patterns = useStore((s) => s.patterns)
   const patternIdx = useStore((s) => s.patternIdx)
   const bpm = useStore((s) => s.bpm)
@@ -19,7 +19,7 @@ export const StrumCard = forwardRef(function StrumCard(_props, ref) {
   const activeCell = playing && beat >= 0 ? beat * 2 : -1
 
   return (
-    <div className="below" ref={ref}>
+    <div className="below" ref={ref} hidden={hidden}>
       <div className="card">
         <div className="strum-head">
           <button className="strum-title pressable" onClick={() => setPopup('picker')}>
