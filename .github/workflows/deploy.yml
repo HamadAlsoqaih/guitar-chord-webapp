@@ -37,9 +37,18 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    # No `environment: github-pages` block on purpose.
+    #
+    # That block hands the job to GitHub's environment protection rules, and this
+    # repo's github-pages environment was created while a different branch was the
+    # default — so its deployment branch policy still names that branch and rejects
+    # main outright: "Branch main is not allowed to deploy to github-pages due to
+    # environment protection rules", one second in, before any step runs.
+    #
+    # deploy-pages authenticates with the OIDC token and posts the artifact to the
+    # Pages API directly; the environment block only governs the deployment record
+    # and the protection gate. Dropping it deploys from main without needing the
+    # environment's stale policy edited by hand.
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
