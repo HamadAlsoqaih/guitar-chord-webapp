@@ -5,6 +5,7 @@ import {
   CELLS_PER_PATTERN,
   CHAR_SIZE_MAX,
   CHAR_SIZE_MIN,
+  MOTION_LEVELS,
   PERSISTED_KEYS,
   REELS_MAX,
   REELS_MIN,
@@ -61,6 +62,7 @@ function reconcile(saved) {
   out.pixPos = validPos(saved.pixPos)
   if (['video', 'pixel', 'both'].includes(saved.charMode)) out.charMode = saved.charMode
   if (Number.isFinite(saved.charSize)) out.charSize = clamp(Math.round(saved.charSize), CHAR_SIZE_MIN, CHAR_SIZE_MAX)
+  if (MOTION_LEVELS.includes(saved.motion)) out.motion = saved.motion
   return out
 }
 
@@ -151,6 +153,10 @@ export const useStore = create((set, get) => ({
   },
   setCharMode: (charMode) => {
     set({ charMode })
+    persist(get())
+  },
+  setMotion: (motion) => {
+    set({ motion })
     persist(get())
   },
   setCharSize: (v) => {
@@ -317,3 +323,33 @@ export const useStore = create((set, get) => ({
 /** Total spin length for the current reel count, in ms. */
 export const spinDurationMs = (reelCount) =>
   SPIN_FIRST_STOP_MS + (reelCount - 1) * SPIN_STAGGER_MS + SPIN_SETTLE_MS
+
+
+/**
+ * A read-only window handle for the browser test suite.
+ *
+ * With the machine rendered in WebGL there is no DOM to assert against — the chord
+ * on each payline lives in a rotation, not an element. This exposes the state the
+ * tests need to check, and the lever's on-screen box so a synthetic touch can find
+ * it. Reads only; nothing here can drive the app.
+ */
+if (typeof window !== 'undefined') {
+  window.__chordRoller = {
+    state: () => {
+      const s = useStore.getState()
+      const pool = poolOf(s)
+      return {
+        reelCount: s.reelCount,
+        reelIdx: s.reelIdx.slice(0, s.reelCount),
+        chords: s.reelIdx.slice(0, s.reelCount).map((i) => pool[((i % pool.length) + pool.length) % pool.length].name),
+        spinning: s.reelSpin.some(Boolean),
+        pool: pool.map((c) => c.name),
+        playing: s.playing,
+        beat: s.beat,
+        unlocked: s.unlocked,
+        theme: s.theme,
+        ready3d: s.ready3d,
+      }
+    },
+  }
+}

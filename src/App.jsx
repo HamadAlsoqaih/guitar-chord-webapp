@@ -3,6 +3,7 @@ import { unlockAudio } from './audio/engine.js'
 import { useMetronome } from './audio/useMetronome.js'
 import { CocoLayer } from './coco/CocoLayer.jsx'
 import { useLayout } from './layout/useLayout.js'
+import { TiltPrompt } from './ui/TiltPrompt.jsx'
 import { useStore } from './store/useStore.js'
 import { ChordSheet } from './ui/ChordSheet.jsx'
 import { CocoSheet } from './ui/CocoSheet.jsx'
@@ -70,6 +71,7 @@ export default function App() {
       </div>
       <TabBar ref={navRef} />
       <CocoLayer />
+      <TiltPrompt />
       <Popups />
     </div>
   )

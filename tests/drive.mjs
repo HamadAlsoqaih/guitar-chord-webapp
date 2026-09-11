@@ -2,10 +2,14 @@ import { mkdir } from 'node:fs/promises'
 import {
   IPAD_LANDSCAPE,
   IPAD_PORTRAIT,
+  dragLever,
+  dragReel,
   iPadContext,
   launch,
+  machineState,
   touchDrag,
   touchTap,
+  waitFor3d,
   watchConsole,
 } from './browser.mjs'
 
@@ -22,8 +26,8 @@ const check = (name, ok, detail = '') => {
   }
 }
 
-const reelText = (page) =>
-  page.$$eval('.fb-main, [data-reel-value]', (els) => els.map((e) => e.textContent.trim()))
+const chords = async (page) => (await machineState(page)).chords
+const spinning = async (page) => (await machineState(page)).spinning
 
 async function run() {
   await mkdir(OUT, { recursive: true })
@@ -34,49 +38,49 @@ async function run() {
   watchConsole(page, noise)
 
   await page.goto(BASE, { waitUntil: 'networkidle' })
-  await wait(700)
+  await waitFor3d(page)
+  await wait(500)
 
   console.log('\nPractice page')
   check('header title', (await page.textContent('.header h1')) === 'Chord Machine')
   check('subtitle locked', (await page.textContent('.header p')) === 'Pull the lever to roll')
-  check('3 reels by default', (await page.$$('.fb-reel')).length === 3)
-  check(
-    'marquee counts',
-    (await page.textContent('.fb-marquee')).includes('3 REELS · 6 CHORDS'),
-    await page.textContent('.fb-marquee')
-  )
+  check('WebGL machine took over', (await page.$$('.machine-slot canvas')).length === 1)
+  check('DOM fallback removed', (await page.$$('.fb-reel')).length === 0)
+  const initial = await machineState(page)
+  check('3 reels by default', initial.reelCount === 3)
+  check('pool has 6 chords', initial.pool.length === 6, initial.pool.join(','))
   check('bpm shows 80', (await page.textContent('.bpm-num')) === '80')
   await page.screenshot({ path: `${OUT}/01-practice.png` })
 
   console.log('\nLever')
-  const before = await reelText(page)
-  await touchDrag(page, '.fb-lever', { dy: 95, steps: 14 })
-  await wait(300)
-  check('reels spinning after pull', (await page.$$('[data-spin="true"]')).length > 0)
-  await wait(3200)
-  const after = await reelText(page)
-  check('reels settled', (await page.$$('[data-spin="true"]')).length === 0)
-  check('result changed or re-rolled', after.length === before.length)
+  await dragLever(page, { dy: 110 })
+  await wait(400)
+  check('reels spinning after pull', await spinning(page))
+  await wait(3400)
+  check('reels settled', !(await spinning(page)))
+  check('three results on the payline', (await chords(page)).length === 3)
   await page.screenshot({ path: `${OUT}/02-after-spin.png` })
 
   console.log('\nShort pull does not spin')
-  await touchDrag(page, '.fb-lever', { dy: 30, steps: 8 })
-  await wait(250)
-  check('no spin below threshold', (await page.$$('[data-spin="true"]')).length === 0)
+  const held = await chords(page)
+  await dragLever(page, { dy: 40, steps: 8 })
+  await wait(400)
+  check('no spin below threshold', !(await spinning(page)))
+  check('reels unchanged', (await chords(page)).join() === held.join())
 
   console.log('\nTap to pull')
-  await touchTap(page, '.fb-lever')
-  await wait(500)
-  check('tap triggered a spin', (await page.$$('[data-spin="true"]')).length > 0)
-  await wait(3200)
+  await dragLever(page, { tap: true })
+  await wait(700)
+  check('tap triggered a spin', await spinning(page))
+  await wait(3400)
 
   console.log('\nManual mode')
   await page.click('.header-actions .icon-btn:first-child')
   check('subtitle unlocked', (await page.textContent('.header p')) === 'Scroll a reel or pull the lever')
-  const manualBefore = (await reelText(page))[0]
-  await touchDrag(page, '.fb-reel:first-child', { dy: -90, steps: 10 })
-  await wait(200)
-  const manualAfter = (await reelText(page))[0]
+  const manualBefore = (await chords(page))[0]
+  await dragReel(page, 0, { dy: -130 })
+  await wait(400)
+  const manualAfter = (await chords(page))[0]
   check('drag stepped the reel', manualBefore !== manualAfter, `${manualBefore} -> ${manualAfter}`)
   await page.click('.header-actions .icon-btn:first-child')
 
@@ -109,22 +113,23 @@ async function run() {
   const minus = '.group:first-of-type .row:nth-child(2) .step-btn:first-child'
   for (let i = 0; i < 3; i++) await page.click(plus)
   await page.click('.nav button:first-child')
-  await wait(400)
-  check('6 reels rendered', (await page.$$('.fb-reel')).length === 6)
+  await wait(900)
+  check('6 reels rendered', (await machineState(page)).reelCount === 6)
   await page.screenshot({ path: `${OUT}/04-six-reels.png` })
-  await touchDrag(page, '.fb-lever', { dy: 95, steps: 14 })
-  await wait(4200)
-  check('6-reel spin settles', (await page.$$('[data-spin="true"]')).length === 0)
+  await dragLever(page, { dy: 110 })
+  await wait(5200)
+  check('6-reel spin settles', !(await spinning(page)))
+  check('six results on the payline', (await chords(page)).length === 6)
 
   await page.click('.nav button:nth-child(2)')
   await wait(250)
   for (let i = 0; i < 4; i++) await page.click(minus)
   await page.click('.nav button:first-child')
-  await wait(400)
-  check('2 reels rendered', (await page.$$('.fb-reel')).length === 2)
-  await touchDrag(page, '.fb-lever', { dy: 95, steps: 14 })
-  await wait(2400)
-  check('2-reel spin settles', (await page.$$('[data-spin="true"]')).length === 0)
+  await wait(900)
+  check('2 reels rendered', (await machineState(page)).reelCount === 2)
+  await dragLever(page, { dy: 110 })
+  await wait(2800)
+  check('2-reel spin settles', !(await spinning(page)))
 
   console.log('\nChord list editing')
   await page.click('.nav button:nth-child(2)')
@@ -159,23 +164,29 @@ async function run() {
 
   console.log('\nPersistence')
   await page.reload({ waitUntil: 'networkidle' })
-  await wait(700)
-  check('reel count persisted', (await page.$$('.fb-reel')).length === 2)
+  await waitFor3d(page)
+  await wait(400)
+  check('reel count persisted', (await machineState(page)).reelCount === 2)
 
   console.log('\nPortrait')
   const pctx = await iPadContext(browser, IPAD_PORTRAIT)
   const ppage = await pctx.newPage()
   watchConsole(ppage, noise)
   await ppage.goto(BASE, { waitUntil: 'networkidle' })
-  await wait(800)
-  check('portrait renders the machine', (await ppage.$$('.fb-reel')).length >= 2)
+  await waitFor3d(ppage)
+  await wait(600)
+  check('portrait renders the machine', (await ppage.$$('.machine-slot canvas')).length === 1)
   const overflow = await ppage.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
   check('no horizontal overflow in portrait', overflow <= 1, `overflow ${overflow}`)
   await ppage.screenshot({ path: `${OUT}/06-portrait.png` })
 
   console.log('\nConsole')
-  const real = noise.filter((n) => !/favicon|Download the React DevTools/i.test(n))
-  check('no console errors or warnings', real.length === 0, real.slice(0, 4).join(' | '))
+  // SwiftShader emits its own driver performance notes; they are the test rig, not the app.
+  const real = noise.filter(
+    (n) => !/favicon|Download the React DevTools|GPU stall due to ReadPixels|GL Driver Message/i.test(n)
+  )
+  check('no console errors or warnings', real.length === 0)
+  real.slice(0, 6).forEach((n) => console.log('      ' + n.replace(/\s+/g, ' ').slice(0, 200)))
 
   await browser.close()
 

@@ -4,6 +4,12 @@ import { clamp, useStore } from '../store/useStore.js'
 
 const countOn = (list) => list.filter((x) => x.on).length
 
+const MOTION_OPTIONS = [
+  { key: 'off', label: 'Off' },
+  { key: 'subtle', label: 'A little' },
+  { key: 'strong', label: 'A lot' },
+]
+
 function Row({ title, sub, dot, onClick, children }) {
   const Tag = onClick ? 'button' : 'div'
   return (
@@ -35,6 +41,8 @@ export function Settings() {
   const setBpm = useStore((s) => s.setBpm)
   const setReelCount = useStore((s) => s.setReelCount)
   const setSound = useStore((s) => s.setSound)
+  const motion = useStore((s) => s.motion)
+  const setMotion = useStore((s) => s.setMotion)
   const setPopup = useStore((s) => s.setPopup)
 
   // The tempo box is free-typed, so it keeps its own draft until blur/Enter.
@@ -105,6 +113,18 @@ export function Settings() {
           dot="var(--dim)"
           onClick={() => setPopup('patterns')}
         />
+      </div>
+
+      <div className="group">
+        <Row title="Machine motion" sub="How much the machine drifts and leans when you are not touching it">
+          <div className="seg" style={{ flex: '0 0 auto', minWidth: 260 }}>
+            {MOTION_OPTIONS.map((o) => (
+              <button key={o.key} data-active={motion === o.key} onClick={() => setMotion(o.key)}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </Row>
       </div>
 
       <div className="group">

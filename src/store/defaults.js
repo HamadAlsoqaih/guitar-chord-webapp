@@ -76,6 +76,14 @@ export const DRAG_THRESHOLD_PX = 6
 /** How close to the lever a dropped character counts as "on the lever". */
 export const LEVER_DROP_PAD = 30
 
+/** Idle motion levels: how much the machine floats and leans when untouched. */
+export const MOTION_LEVELS = ['off', 'subtle', 'strong']
+export const MOTION_PRESETS = {
+  off: { float: 0, tilt: 0 },
+  subtle: { float: 0.014, tilt: 0.055 },
+  strong: { float: 0.045, tilt: 0.145 },
+}
+
 export const CHAR_SIZE_MIN = 40
 export const CHAR_SIZE_MAX = 200
 export const CHAR_SIZE_STEP = 10
@@ -103,6 +111,7 @@ export function defaults() {
     pixPos: null,
     charMode: 'video',
     charSize: 100,
+    motion: 'off',
   }
 }
 

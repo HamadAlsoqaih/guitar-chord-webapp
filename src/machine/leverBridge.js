@@ -35,3 +35,8 @@ export function pullLever() {
 export function hasLever() {
   return !!rectProvider
 }
+
+// The browser tests need the lever's on-screen box to aim a synthetic touch at it.
+if (typeof window !== 'undefined') {
+  window.__chordRollerLever = { rect: getLeverRect }
+}

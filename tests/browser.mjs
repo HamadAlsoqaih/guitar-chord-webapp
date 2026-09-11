@@ -82,3 +82,83 @@ export function watchConsole(page, sink) {
   })
   page.on('pageerror', (err) => sink.push(`pageerror: ${err.message}`))
 }
+
+/** Wait until the WebGL machine has taken over from the DOM fallback. */
+export async function waitFor3d(page, timeout = 20000) {
+  await page.waitForFunction(() => window.__chordRoller?.state()?.ready3d === true, { timeout })
+  // One more frame so the first render has placed everything.
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+}
+
+export const machineState = (page) => page.evaluate(() => window.__chordRoller.state())
+
+/**
+ * Drag the 3D lever with a synthetic touch aimed at the ball's real screen position.
+ * R3F raycasts from client coordinates, so the events must land on the canvas at the
+ * spot the ball actually occupies.
+ */
+export async function dragLever(page, { dy = 100, steps = 14, tap = false } = {}) {
+  await page.evaluate(
+    async ({ dy, steps, tap }) => {
+      const rect = window.__chordRollerLever.rect()
+      if (!rect) throw new Error('lever not registered')
+      const canvas = document.querySelector('.machine-slot canvas')
+      const x = (rect.left + rect.right) / 2
+      const y0 = (rect.top + rect.bottom) / 2
+      const base = {
+        pointerId: 7,
+        pointerType: 'touch',
+        isPrimary: true,
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        buttons: 1,
+      }
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { ...base, clientX: x, clientY: y0 }))
+      if (!tap) {
+        for (let i = 1; i <= steps; i++) {
+          const y = y0 + (dy * i) / steps
+          window.dispatchEvent(new PointerEvent('pointermove', { ...base, clientX: x, clientY: y }))
+          await wait(14)
+        }
+      }
+      const yEnd = tap ? y0 : y0 + dy
+      window.dispatchEvent(
+        new PointerEvent('pointerup', { ...base, buttons: 0, clientX: x, clientY: yEnd })
+      )
+    },
+    { dy, steps, tap }
+  )
+}
+
+/** Drag a 3D reel drum vertically — manual mode steps one chord per 38px. */
+export async function dragReel(page, index, { dy = -120, steps = 12 } = {}) {
+  await page.evaluate(
+    async ({ index, dy, steps }) => {
+      const spot = window.__chordRollerReels.rects()[index]
+      if (!spot) throw new Error(`reel ${index} not on screen`)
+      const canvas = document.querySelector('.machine-slot canvas')
+      const base = {
+        pointerId: 20 + index,
+        pointerType: 'touch',
+        isPrimary: true,
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        buttons: 1,
+      }
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { ...base, clientX: spot.x, clientY: spot.y }))
+      for (let i = 1; i <= steps; i++) {
+        const y = spot.y + (dy * i) / steps
+        window.dispatchEvent(new PointerEvent('pointermove', { ...base, clientX: spot.x, clientY: y }))
+        await wait(16)
+      }
+      window.dispatchEvent(
+        new PointerEvent('pointerup', { ...base, buttons: 0, clientX: spot.x, clientY: spot.y + dy })
+      )
+    },
+    { index, dy, steps }
+  )
+}
