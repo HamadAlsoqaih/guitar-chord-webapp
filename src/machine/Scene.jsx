@@ -5,7 +5,7 @@ import gsap from 'gsap'
 import * as THREE from 'three'
 import { MOTION_PRESETS } from '../store/defaults.js'
 import { poolOf, useStore } from '../store/useStore.js'
-import { clack } from '../audio/engine.js'
+import { clack, land } from '../audio/engine.js'
 import { Cabinet, LeverMount } from './Cabinet.jsx'
 import { Lever3D } from './Lever3D.jsx'
 import { Reels } from './Reels.jsx'
@@ -76,7 +76,9 @@ export function Scene() {
 
   /** Each drum landing gets a click and a small kick to the cabinet. */
   const onClack = useCallback((index) => {
+    // The detent under it, then the bell — each drum a step above the last.
     clack(0.8)
+    land(index)
     // The cabinet rings for about a second after a landing.
     poke(1200)
     jolt.current.v -= 0.05

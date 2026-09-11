@@ -9,6 +9,7 @@ import {
   SPIN_STAGGER_MS,
 } from '../store/defaults.js'
 import { poolOf, useStore } from '../store/useStore.js'
+import { reelTicks } from '../audio/engine.js'
 import { REEL_FACE, REEL_Y, reelRadius, reelX, reelZ, rotationForCell } from './geometry.js'
 import { buildReelTexture, cellForPoolIndex } from './reelTexture.js'
 import { invalidateGlass, reelMotion, behindGlass } from './ReelGlass.jsx'
@@ -208,6 +209,9 @@ export function Reels({ onClack }) {
     return killTweens
   }, [spinToken, pool.length, cells, onClack, killTweens])
 
+  /** Angle since the last tick, per drum: one tick per chord across the payline. */
+  const sinceTick = useRef([0, 0, 0, 0, 0, 0])
+
   /**
    * Swap to the smeared strip from the drum's actual angular speed, not from a
    * spinning flag. The drum is sharp through the anticipation nudge, blurs as it
@@ -216,13 +220,35 @@ export function Reels({ onClack }) {
    */
   useFrame((_, delta) => {
     let angles = 0
+    const cellArc = (Math.PI * 2) / cells
     for (let i = 0; i < materials.length; i++) {
       const drum = drums.current[i]
       const material = materials[i]
       if (!drum) continue
-      const speed = delta > 0 ? Math.abs(drum.rotation.x - lastRotation.current[i]) / delta : 0
+      const moved = drum.rotation.x - lastRotation.current[i]
+      const speed = delta > 0 ? Math.abs(moved) / delta : 0
       lastRotation.current[i] = drum.rotation.x
       angles += drum.rotation.x
+
+      /*
+       * The rattle comes from the drum, not from a timer: every chord that crosses
+       * the payline is a tick, so it speeds up and thins out exactly as the drum
+       * does, with no separate animation to keep in step. Angle is accumulated
+       * rather than compared frame to frame — at full speed a drum covers several
+       * chords between frames, and only the accumulated version stays honest about
+       * how many actually went past.
+       */
+      if (i < reelCount) {
+        sinceTick.current[i] += Math.abs(moved)
+        if (sinceTick.current[i] >= cellArc && speed > 0.35) {
+          const crossed = Math.floor(sinceTick.current[i] / cellArc)
+          sinceTick.current[i] -= crossed * cellArc
+          // Quieter as it slows, so the run-down settles rather than stops dead.
+          reelTicks(crossed, delta, Math.min(1, 0.4 + speed / 14))
+        } else if (sinceTick.current[i] >= cellArc) {
+          sinceTick.current[i] %= cellArc
+        }
+      }
 
       const smeared = material.map === blurred
       const want = (smeared ? speed > BLUR_OFF : speed > BLUR_ON) ? blurred : texture

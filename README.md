@@ -125,6 +125,30 @@ On the software rasteriser the tests run on, the low tier renders an idle frame
 about five times faster than the high one, and the two are hard to tell apart in a
 screenshot.
 
+## Sound
+
+The machine is synthesised, not sampled — `src/audio/engine.js`, the same Web Audio
+graph the metronome runs on. A sample would have to be recorded at one speed and
+then played at that speed, and a roll changes speed the whole way through; building
+the sound out of the mechanism instead means it is right at every point of the
+run-down, at any reel count, however long the roll lasts.
+
+A tick fires for each chord that crosses the payline, so the rattle speeds up and
+thins out exactly as the drums do. The ticks are booked on the audio clock across
+the frame they belong to rather than played one per frame — at full speed a drum
+passes several chords between two frames, and playing one of them would make the
+rattle a report of the frame rate. All the drums share one gate: three reels running
+is one machine rattling, not three, and without it the fast part of a roll is a tone
+rather than the sound of something turning.
+
+Each drum lands with a detent thump and a bell — inharmonic partials, because struck
+metal is not harmonic — a step higher than the drum before it, so a roll finishes on
+a rising figure.
+
+`npm run test:audio` taps the audio graph: it records every voice as it is scheduled
+and watches every sample that reaches the speakers, which is how the rattle, the
+three bells and their rising pitches are checked without anyone listening.
+
 ## Touch
 
 Built for fingers: pointer capture with per-pointer locking so a second finger can't

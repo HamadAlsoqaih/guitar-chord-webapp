@@ -51,6 +51,29 @@ export const CLICK_ACCENT_GAIN = 0.35
 export const CLICK_GAIN = 0.2
 export const CLICK_DECAY_S = 0.07
 
+/**
+ * The machine's own sounds.
+ *
+ * A tick for every chord that passes the payline, and a bell when a drum lands —
+ * so a roll sounds like a reel running down and stopping, not like a timer.
+ *
+ * REEL_TICK_MIN_MS is what keeps the fast part of a roll from turning into a buzz.
+ * At full speed a drum passes something like seventy chords a second; played one
+ * for one that is a tone, not a rattle. Throttled, the ticks start as a blur and
+ * thin out into separate clicks as the drum slows, which is the sound a real reel
+ * makes.
+ */
+export const REEL_TICK_MIN_MS = 36
+export const REEL_TICK_HZ = 2100
+export const REEL_TICK_GAIN = 0.075
+export const REEL_TICK_DECAY_S = 0.035
+
+/** The bell on a landing: semitones above the root, one step per drum. */
+export const LAND_STEPS = [0, 4, 7, 12, 16, 19]
+export const LAND_ROOT_HZ = 1046.5
+export const LAND_GAIN = 0.17
+export const LAND_DECAY_S = 0.5
+
 /** Speech bubble: ms per character while typing, then ms held on screen. */
 export const BUBBLE_TYPE_MS = 45
 export const BUBBLE_HOLD_MS = 2600
