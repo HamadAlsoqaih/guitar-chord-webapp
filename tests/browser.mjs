@@ -1,0 +1,84 @@
+import { chromium } from 'playwright'
+
+/** The bundled Chromium revision differs from the one Playwright expects. */
+export const EXECUTABLE = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'
+
+export const IPAD_LANDSCAPE = { width: 1024, height: 768 }
+export const IPAD_PORTRAIT = { width: 768, height: 1024 }
+
+export async function launch() {
+  return chromium.launch({
+    executablePath: EXECUTABLE,
+    args: ['--no-sandbox', '--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
+  })
+}
+
+/** An iPad-like context: touch input, no mouse, device pixel ratio 2. */
+export async function iPadContext(browser, viewport = IPAD_LANDSCAPE) {
+  return browser.newContext({
+    viewport,
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+    userAgent:
+      'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+  })
+}
+
+/**
+ * A real finger drag: pointer events with pointerType "touch", which is what the
+ * app listens for. Driving this with the mouse would exercise a path iPad users
+ * never take.
+ */
+export async function touchDrag(page, selector, { dx = 0, dy = 0, steps = 12, hold = 0 } = {}) {
+  await page.evaluate(
+    async ({ selector, dx, dy, steps, hold }) => {
+      const el = document.querySelector(selector)
+      if (!el) throw new Error(`no element for ${selector}`)
+      const r = el.getBoundingClientRect()
+      const x0 = r.left + r.width / 2
+      const y0 = r.top + r.height / 2
+      const base = {
+        pointerId: 1,
+        pointerType: 'touch',
+        isPrimary: true,
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        buttons: 1,
+      }
+      const fire = (type, x, y, buttons = 1) =>
+        el.dispatchEvent(new PointerEvent(type, { ...base, buttons, clientX: x, clientY: y }))
+      const wait = (ms) => new Promise((r2) => setTimeout(r2, ms))
+
+      fire('pointerdown', x0, y0)
+      for (let i = 1; i <= steps; i++) {
+        const x = x0 + (dx * i) / steps
+        const y = y0 + (dy * i) / steps
+        window.dispatchEvent(new PointerEvent('pointermove', { ...base, clientX: x, clientY: y }))
+        el.dispatchEvent(new PointerEvent('pointermove', { ...base, clientX: x, clientY: y }))
+        await wait(12)
+      }
+      if (hold) await wait(hold)
+      const xe = x0 + dx
+      const ye = y0 + dy
+      window.dispatchEvent(new PointerEvent('pointerup', { ...base, buttons: 0, clientX: xe, clientY: ye }))
+      el.dispatchEvent(new PointerEvent('pointerup', { ...base, buttons: 0, clientX: xe, clientY: ye }))
+    },
+    { selector, dx, dy, steps, hold }
+  )
+}
+
+/** A tap with no movement — the app treats this differently from a drag. */
+export async function touchTap(page, selector) {
+  await touchDrag(page, selector, { dx: 0, dy: 0, steps: 1 })
+}
+
+/** Collects console errors/warnings and page exceptions for the run to assert on. */
+export function watchConsole(page, sink) {
+  page.on('console', (msg) => {
+    const type = msg.type()
+    if (type === 'error' || type === 'warning') sink.push(`${type}: ${msg.text()}`)
+  })
+  page.on('pageerror', (err) => sink.push(`pageerror: ${err.message}`))
+}
