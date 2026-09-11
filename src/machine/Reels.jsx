@@ -67,16 +67,58 @@ export function Reels({ onClack }) {
     return geo
   }, [radius])
 
+  /**
+   * Only the chord on the payline keeps its colour; the ones above and below it are
+   * drained to grey, so the eye lands on the result instead of reading three chords
+   * and working out which one counts.
+   *
+   * The drum turns, so no printed strip can know which cell is on the line — this
+   * has to be decided per fragment, from where the fragment ends up. The drum's
+   * centre sits exactly on the payline, so a fragment's height above that centre is
+   * its distance from the line, and the band that stays in colour is the same
+   * half-arc the two red lines bracket. Paper is white and desaturates to itself,
+   * so what actually changes is the ink.
+   */
+  const bandHalf = radius * Math.sin(Math.PI / cells)
+
   const materials = useMemo(
     () =>
-      Array.from({ length: 6 }, () =>
-        new THREE.MeshStandardMaterial({
+      Array.from({ length: 6 }, () => {
+        const material = new THREE.MeshStandardMaterial({
           map: texture,
           roughness: 0.74,
           metalness: 0.02,
         })
-      ),
-    [texture]
+        material.onBeforeCompile = (shader) => {
+          shader.uniforms.uBand = { value: bandHalf }
+          shader.vertexShader = shader.vertexShader
+            .replace('#include <common>', '#include <common>\nvarying float vFromLine;')
+            .replace(
+              '#include <begin_vertex>',
+              `#include <begin_vertex>
+               vec4 drumWorld = modelMatrix * vec4(transformed, 1.0);
+               // Height above the drum's own centre, which is the payline itself.
+               vFromLine = drumWorld.y - modelMatrix[3][1];`
+            )
+          shader.fragmentShader = shader.fragmentShader
+            .replace(
+              '#include <common>',
+              '#include <common>\nvarying float vFromLine;\nuniform float uBand;'
+            )
+            .replace(
+              '#include <map_fragment>',
+              `#include <map_fragment>
+               // A soft edge on the band, or the cutoff crawls along the glyphs as
+               // the drum settles.
+               float offLine = smoothstep(uBand * 0.92, uBand * 1.12, abs(vFromLine));
+               float luma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+               vec3 faded = mix(vec3(luma), vec3(0.74), 0.4);
+               diffuseColor.rgb = mix(diffuseColor.rgb, faded, offLine * 0.88);`
+            )
+        }
+        return material
+      }),
+    [bandHalf, texture]
   )
 
   useEffect(

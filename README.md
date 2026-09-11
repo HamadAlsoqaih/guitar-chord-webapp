@@ -57,6 +57,12 @@ layer, so it stays sharp for a fraction of the cost.
 frame, which paints a rectangle over the page wherever the canvas should be
 transparent; every emitter here is small enough to carry its own halo.
 
+**Only the chord on the payline keeps its colour.** The two above and below it are
+drained to grey in the drum's own shader, from each fragment's height above the
+drum's centre — which is the payline — against the same half-arc the red lines
+bracket. A printed strip could not do this: the drum turns, so which cell is on the
+line changes every frame.
+
 **The WebGL context is created once and kept.** The practice page is hidden, not
 unmounted, while settings is open: a browser keeps only a handful of contexts alive
 and starts dropping the oldest, which is how a machine turns into a blank rectangle
