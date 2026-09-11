@@ -136,6 +136,7 @@ export async function dragLever(page, { dy = 100, steps = 14, tap = false } = {}
 export async function dragReel(page, index, { dy = -120, steps = 12 } = {}) {
   await page.evaluate(
     async ({ index, dy, steps }) => {
+      if (!window.__chordRollerReels) throw new Error('machine not mounted — is the Practice tab active?')
       const spot = window.__chordRollerReels.rects()[index]
       if (!spot) throw new Error(`reel ${index} not on screen`)
       const canvas = document.querySelector('.machine-slot canvas')

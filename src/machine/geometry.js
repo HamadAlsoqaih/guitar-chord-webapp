@@ -37,7 +37,7 @@ export const reelZ = (cells) => DRUM_FRONT_Z - reelRadius(cells)
 export const cellAngle = (cells) => (Math.PI * 2) / cells
 
 /** How far the lever reaches past the cabinet's left edge. */
-export const LEVER_OVERHANG = 0.95
+export const LEVER_OVERHANG = 1.2
 
 export const reelSpan = (n) => n * REEL_FACE + (n - 1) * REEL_GAP
 export const cabinetWidth = (n) => reelSpan(n) + BEZEL_X * 2

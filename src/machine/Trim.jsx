@@ -199,8 +199,9 @@ export function NeonSign({ widthRef }) {
 export function MarqueePlate({ widthRef }) {
   const groupRef = useRef(null)
   const reelCount = useStore((s) => s.reelCount)
-  const pool = useStore(poolOf)
-  const label = `${reelCount} REELS · ${pool.length} CHORDS`
+  // Subscribe to the count, not the array: this only needs to change when it changes.
+  const chordCount = useStore((s) => poolOf(s).length)
+  const label = `${reelCount} REELS · ${chordCount} CHORDS`
 
   const texture = useMemo(() => buildMarqueeTexture(label), [label])
   useEffect(() => () => texture.dispose(), [texture])

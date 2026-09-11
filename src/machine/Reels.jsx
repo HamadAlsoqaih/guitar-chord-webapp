@@ -14,8 +14,13 @@ import { buildReelTexture, cellForPoolIndex } from './reelTexture.js'
 import { behindGlass } from './ReelGlass.jsx'
 
 const SEGMENTS = 44
-/** Radians per second past which the printing smears. */
-const BLUR_SPEED = 7
+/**
+ * Radians per second at which the printing starts and stops smearing. The two
+ * thresholds differ on purpose: a single one sits right where a decelerating drum
+ * hovers, and the texture would flip back and forth every frame.
+ */
+const BLUR_ON = 8
+const BLUR_OFF = 5
 const reducedMotion = () =>
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -168,10 +173,13 @@ export function Reels({ onClack }) {
       if (!drum) continue
       const speed = delta > 0 ? Math.abs(drum.rotation.x - lastRotation.current[i]) / delta : 0
       lastRotation.current[i] = drum.rotation.x
-      const want = speed > BLUR_SPEED ? blurred : texture
+
+      const smeared = material.map === blurred
+      const want = (smeared ? speed > BLUR_OFF : speed > BLUR_ON) ? blurred : texture
       if (material.map !== want) {
+        // Assign only the map. Setting needsUpdate would rebuild the shader program
+        // on every swap, and both textures compile to exactly the same one.
         material.map = want
-        material.needsUpdate = true
       }
     }
     // Drums ease toward their slot as the reel count changes, instead of popping.

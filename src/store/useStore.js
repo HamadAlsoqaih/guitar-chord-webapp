@@ -87,12 +87,24 @@ function persist(state) {
 
 const EMPTY_POOL = [{ name: '–', tone: 'know' }]
 
-/** The chord pool: enabled "known" chords then enabled "to learn" chords. */
+/**
+ * The chord pool: enabled "known" chords, then enabled "to learn" chords.
+ *
+ * The result is cached against the two source arrays so repeated calls return the
+ * *same* array. This is used as a zustand selector, which compares by identity — a
+ * fresh array every call would re-render every subscriber on every store change,
+ * including the reel index ticking ten times a second through a spin. That in turn
+ * re-rendered the scene's lighting and sent the environment probe back to re-bake.
+ */
+let poolCache = { known: null, learn: null, value: EMPTY_POOL }
+
 export function poolOf(state) {
+  if (poolCache.known === state.known && poolCache.learn === state.learn) return poolCache.value
   const out = []
   for (const c of state.known) if (c.on) out.push({ name: c.name, tone: 'know' })
   for (const c of state.learn) if (c.on) out.push({ name: c.name, tone: 'learn' })
-  return out.length ? out : EMPTY_POOL
+  poolCache = { known: state.known, learn: state.learn, value: out.length ? out : EMPTY_POOL }
+  return poolCache.value
 }
 
 const spinTimeouts = []

@@ -218,8 +218,14 @@ function Character({ which, size, onTap }) {
   const onPointerDown = (e) => {
     const el = rootRef.current
     if (!el) return
-    // Lock to this pointer: a second finger must not hijack the drag.
-    el.setPointerCapture(e.pointerId)
+    // Lock to this pointer so a second finger cannot hijack the drag. Capture can
+    // throw for a pointer the browser no longer holds, and letting that escape kills
+    // the drag before its listeners are bound.
+    try {
+      el.setPointerCapture(e.pointerId)
+    } catch {
+      /* carry on without capture */
+    }
     const rect = el.getBoundingClientRect()
     const offX = e.clientX - rect.left
     const offY = e.clientY - rect.top
@@ -245,7 +251,11 @@ function Character({ which, size, onTap }) {
 
     const up = (ev) => {
       if (ev.pointerId !== e.pointerId) return
-      el.releasePointerCapture?.(e.pointerId)
+      try {
+        el.releasePointerCapture?.(e.pointerId)
+      } catch {
+        /* nothing to release */
+      }
       el.removeEventListener('pointermove', move)
       el.removeEventListener('pointerup', up)
       el.removeEventListener('pointercancel', up)

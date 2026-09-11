@@ -15,8 +15,8 @@ import { useLeverDrag } from './useLeverDrag.js'
  * viewer* as it comes down, growing as it approaches. That arc is what makes it
  * read as a physical lever rather than a sprite sliding down the screen.
  */
-const ARM_LENGTH = 1.16
-const BALL_R = 0.21
+const ARM_LENGTH = 0.82
+const BALL_R = 0.23
 /** Resting lean (slightly back) through to a full pull (down and forward). */
 const REST_ANGLE = -0.2
 const PULL_ANGLE = 0.88
@@ -109,7 +109,7 @@ export function Lever3D({ x, onCommit }) {
         <capsuleGeometry args={[0.34, ARM_LENGTH * 0.9, 4, 8]} />
       </mesh>
 
-      <mesh position={[0, ARM_LENGTH / 2, 0]} material={steelMaterial} castShadow>
+      <mesh position={[0, ARM_LENGTH / 2, 0]} material={steelMaterial}>
         <cylinderGeometry args={[0.052, 0.062, ARM_LENGTH, 16]} />
       </mesh>
 
@@ -118,7 +118,7 @@ export function Lever3D({ x, onCommit }) {
         <cylinderGeometry args={[0.082, 0.082, 0.075, 16]} />
       </mesh>
 
-      <mesh ref={ballRef} position={[0, ARM_LENGTH + BALL_R * 0.55, 0]} material={ballMaterial} castShadow>
+      <mesh ref={ballRef} position={[0, ARM_LENGTH + BALL_R * 0.55, 0]} material={ballMaterial}>
         <sphereGeometry args={[BALL_R, 32, 24]} />
       </mesh>
     </a.group>

@@ -162,6 +162,82 @@ async function run() {
   check('coco fell back to the floor', Math.abs(cocoAfter.y - cocoBox.y) < 6, `${cocoBox.y} -> ${cocoAfter.y}`)
   await page.screenshot({ path: `${OUT}/05-coco.png` })
 
+  console.log('\nMulti-touch')
+  // The previous section left us on Settings, where the machine is unmounted.
+  await page.click('.nav button:first-child')
+  await waitFor3d(page)
+  await wait(400)
+  await page.click('.header-actions .icon-btn:first-child')
+  const twoBefore = await chords(page)
+  // Two fingers scrubbing two drums at once must move both, independently.
+  await Promise.all([dragReel(page, 0, { dy: -130 }), dragReel(page, 1, { dy: 130 })])
+  await wait(500)
+  const twoAfter = await chords(page)
+  check('two reels scrub at once', twoBefore[0] !== twoAfter[0] && twoBefore[1] !== twoAfter[1],
+    `${twoBefore.join()} -> ${twoAfter.join()}`)
+  await page.click('.header-actions .icon-btn:first-child')
+
+  // A stray second finger during a pull must not hijack or cancel the lever.
+  const strayBefore = await chords(page)
+  await Promise.all([
+    dragLever(page, { dy: 110 }),
+    (async () => {
+      await wait(60)
+      await dragReel(page, 1, { dy: 90 })
+    })(),
+  ])
+  await wait(400)
+  check('lever survives a stray second finger', await spinning(page))
+  await wait(3400)
+  check('spin completed', !(await spinning(page)) && (await chords(page)).length === strayBefore.length)
+
+  console.log('\nCoco on the lever')
+  const leverSpot = await page.evaluate(() => {
+    const r = window.__chordRollerLever.rect()
+    return r ? { x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 } : null
+  })
+  check('lever reports a screen position', !!leverSpot)
+  if (leverSpot) {
+    await page.evaluate(
+      async ({ x, y }) => {
+        const el = document.querySelector('.char')
+        const r = el.getBoundingClientRect()
+        const base = { pointerId: 40, pointerType: 'touch', isPrimary: true, bubbles: true, cancelable: true, button: 0, buttons: 1 }
+        const wait2 = (ms) => new Promise((res) => setTimeout(res, ms))
+        const from = { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+        el.dispatchEvent(new PointerEvent('pointerdown', { ...base, clientX: from.x, clientY: from.y }))
+        for (let i = 1; i <= 12; i++) {
+          const cx = from.x + ((x - from.x) * i) / 12
+          const cy = from.y + ((y - from.y) * i) / 12
+          el.dispatchEvent(new PointerEvent('pointermove', { ...base, clientX: cx, clientY: cy }))
+          await wait2(14)
+        }
+        el.dispatchEvent(new PointerEvent('pointerup', { ...base, buttons: 0, clientX: x, clientY: y }))
+      },
+      leverSpot
+    )
+    await wait(700)
+    check('dropping Coco on the lever pulls it', await spinning(page))
+    await wait(3600)
+  }
+
+  console.log('\nOrientation change')
+  await page.setViewportSize(IPAD_PORTRAIT)
+  await wait(1200)
+  const rotated = await page.evaluate(() => {
+    const nav = document.querySelector('.nav').getBoundingClientRect()
+    const slot = document.querySelector('.machine-slot').getBoundingClientRect()
+    const coco = document.querySelector('.char').getBoundingClientRect()
+    return {
+      offCentre: Math.abs(slot.top + slot.height / 2 - nav.top / 2),
+      cocoOnScreen: coco.left >= 0 && coco.right <= window.innerWidth && coco.bottom <= nav.top + 2,
+    }
+  })
+  check('machine re-centres after rotating', rotated.offCentre <= 2, `off by ${Math.round(rotated.offCentre)}px`)
+  check('Coco re-grounds after rotating', rotated.cocoOnScreen)
+  await page.setViewportSize(IPAD_LANDSCAPE)
+  await wait(900)
+
   console.log('\nPersistence')
   await page.reload({ waitUntil: 'networkidle' })
   await waitFor3d(page)

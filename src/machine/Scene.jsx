@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { ContactShadows, Environment, Lightformer } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import gsap from 'gsap'
@@ -10,7 +10,7 @@ import { Cabinet, LeverMount } from './Cabinet.jsx'
 import { Lever3D } from './Lever3D.jsx'
 import { Reels } from './Reels.jsx'
 import { Bulbs, MarqueePlate, NeonSign } from './Trim.jsx'
-import { CABINET_H, LEVER_OVERHANG, cabinetWidth } from './geometry.js'
+import { CABINET_H, LEVER_OVERHANG, SIGN_Y, cabinetWidth } from './geometry.js'
 import { cellsAround } from './reelTexture.js'
 import { getTilt, startPointerTilt } from './tilt.js'
 import { BLUE, NEON } from './materials.js'
@@ -19,11 +19,15 @@ const prefersReducedMotion = () =>
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /**
- * The framed box. Height covers the cabinet plus the sign above it; width keeps the
- * cabinet centred by reserving the lever's overhang on *both* sides, so the machine
- * does not drift right as the lever hangs off the left.
+ * The framed box, sized to the machine's real extent — the cabinet's bottom edge up
+ * to the top of the sign — rather than a padded guess, so the machine fills the
+ * space it is given instead of floating in it.
  */
-const SCENE_H = CABINET_H + 1.15
+const CONTENT_TOP = SIGN_Y + 0.4
+const CONTENT_BOTTOM = -CABINET_H / 2
+const SCENE_H = (CONTENT_TOP - CONTENT_BOTTOM) * 1.04
+/** Vertical centre of that extent; the camera looks here, not at the origin. */
+const FOCUS_Y = (CONTENT_TOP + CONTENT_BOTTOM) / 2
 const FOV = 24
 
 export function Scene() {
@@ -100,7 +104,9 @@ export function Scene() {
     root.rotation.x += (tiltX - root.rotation.x) * Math.min(1, delta * 4)
   })
 
-  const leverX = -(cabinetWidth(reelCount) / 2 + 0.32)
+  // Further out from the flank, on a longer bracket: the arm reads as a handle you
+  // reach for rather than something tucked against the body.
+  const leverX = -(cabinetWidth(reelCount) / 2 + 0.66)
 
   return (
     <>
@@ -147,7 +153,7 @@ function FitCamera({ reelCount, offsetRef }) {
     const vFov = (FOV * Math.PI) / 180
     const forHeight = SCENE_H / 2 / Math.tan(vFov / 2)
     const forWidth = width / 2 / Math.tan(vFov / 2) / aspect
-    baseZ.current = Math.max(forHeight, forWidth) * 1.02
+    baseZ.current = Math.max(forHeight, forWidth)
 
     camera.fov = FOV
     camera.near = 0.5
@@ -169,8 +175,13 @@ function FitCamera({ reelCount, offsetRef }) {
   return null
 }
 
-/** Key, rim and environment. The theme swaps the whole mood, not just the page. */
-function Lighting({ dark }) {
+/**
+ * Key, rim and environment. The theme swaps the whole mood, not just the page.
+ *
+ * Memoised because the environment probe bakes on mount: re-rendering this for any
+ * other reason sends it back to re-render its cubemap.
+ */
+const Lighting = memo(function Lighting({ dark }) {
   const fog = useMemo(
     () => new THREE.FogExp2(dark ? '#05070d' : '#dfe4ef', dark ? 0.028 : 0.012),
     [dark]
@@ -183,14 +194,16 @@ function Lighting({ dark }) {
       <primitive object={fog} attach="fog" />
 
       <ambientLight intensity={dark ? 0.3 : 0.62} />
+      {/*
+        * No shadow map. It re-rendered every caster into a depth pass on every
+        * frame and bought almost nothing: the machine is a flat-fronted box lit
+        * head-on, so it barely self-shadows, and the shadow that actually reads is
+        * the contact shadow below it — which is baked once and then frozen.
+        */}
       <directionalLight
         position={[4.5, 6, 6]}
         intensity={dark ? 1.35 : 1.75}
         color={dark ? '#c9d8ff' : '#ffffff'}
-        castShadow
-        shadow-mapSize={[1024, 1024]}
-        shadow-camera-near={1}
-        shadow-camera-far={22}
       />
       {/* Blue rim from behind-left, carrying over the blue glow from the old design. */}
       <directionalLight position={[-6, 2, -4]} intensity={dark ? 2.2 : 0.9} color={BLUE} />
@@ -210,7 +223,7 @@ function Lighting({ dark }) {
       </Environment>
     </>
   )
-}
+})
 
 /** A soft burst of light behind the result row when a roll lands. */
 function WinBurst({ winRef }) {

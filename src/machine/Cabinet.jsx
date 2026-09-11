@@ -103,7 +103,6 @@ export function Cabinet({ reelCount, widthRef, cells, dark }) {
         smoothness={3}
         position={[0, 0, FRAME_Z - FRAME_D / 2 - (CABINET_D - FRAME_D) / 2]}
         material={cavityMaterial}
-        receiveShadow
         onUpdate={behindGlass}
       />
 
@@ -115,7 +114,6 @@ export function Cabinet({ reelCount, widthRef, cells, dark }) {
         smoothness={3}
         position={[0, WIN_TOP + TOP_H / 2, FRAME_Z]}
         material={bodyMaterial}
-        castShadow
       />
       <RoundedBox
         ref={refs.bottom}
@@ -124,7 +122,6 @@ export function Cabinet({ reelCount, widthRef, cells, dark }) {
         smoothness={3}
         position={[0, WIN_BOTTOM - BOTTOM_H / 2, FRAME_Z]}
         material={bodyMaterial}
-        castShadow
       />
       <RoundedBox
         ref={refs.left}
@@ -133,7 +130,6 @@ export function Cabinet({ reelCount, widthRef, cells, dark }) {
         smoothness={3}
         position={[-(NOMINAL_W / 2 - SIDE_W / 2), 0, FRAME_Z]}
         material={bodyMaterial}
-        castShadow
       />
       <RoundedBox
         ref={refs.right}
@@ -142,7 +138,6 @@ export function Cabinet({ reelCount, widthRef, cells, dark }) {
         smoothness={3}
         position={[NOMINAL_W / 2 - SIDE_W / 2, 0, FRAME_Z]}
         material={bodyMaterial}
-        castShadow
       />
 
       <group ref={refs.lines}>
