@@ -12,9 +12,9 @@
  * clear it wants replacing rather than quietly dialling nobody.
  */
 export const CONTACT = {
-  phone: '+966 50 000 0000',
+  // phone: '+966 50 000 0000',
   // email: 'hamad@example.com',
-  // website: 'hamad.example.com',
+  website: 'https://wa.me/966595311245',
 }
 
 /**
