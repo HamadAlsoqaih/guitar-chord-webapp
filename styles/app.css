@@ -474,8 +474,8 @@ input {
   flex: 0 0 auto;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  height: calc(var(--nav-h) + var(--nav-safe));
+  padding-bottom: var(--nav-safe);
   border-top: 1px solid var(--edge);
   background: color-mix(in srgb, var(--panel) 82%, transparent);
   backdrop-filter: blur(22px) saturate(1.4);
@@ -1030,7 +1030,7 @@ input {
 .tilt-btn {
   position: fixed;
   right: calc(env(safe-area-inset-right, 0px) + 18px);
-  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 18px);
+  bottom: calc(var(--nav-h) + var(--nav-safe) + 18px);
   z-index: 35;
   padding: 10px 16px;
   border-radius: 14px;

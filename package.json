@@ -15,6 +15,7 @@
     "test:styles": "node tests/styles.mjs",
     "test:contact": "node tests/contact.mjs",
     "test:throw": "node tests/throw.mjs",
+    "test:nav": "node tests/nav.mjs",
     "profile": "node tests/profile.mjs"
   },
   "dependencies": {

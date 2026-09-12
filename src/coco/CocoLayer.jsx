@@ -37,6 +37,18 @@ const PIXEL_FRAMES = [asset('koko-f1.png'), asset('koko-f2.png')]
 const BASE = { video: 150, pixel: 120 }
 
 /**
+ * The tab bar's height, for the one case where the bar itself cannot be found.
+ *
+ * Read from the token rather than written down here: the last copy of this number
+ * in JS went stale the moment the bar's height was touched, and a floor that is
+ * wrong by the difference drops the character through it.
+ */
+function navHeight() {
+  const css = getComputedStyle(document.documentElement).getPropertyValue('--nav-h')
+  return parseFloat(css) || 66
+}
+
+/**
  * Types a line into the balloon.
  *
  * The text is written straight to the DOM rather than held in React state. Typing
@@ -234,7 +246,7 @@ function Character({ which, size, onTap }) {
     const h = boxRef.current.h || el.offsetHeight || 0
     if (!h || !w) return null
     const nav = document.querySelector('.nav')
-    const navTop = nav ? nav.getBoundingClientRect().top : window.innerHeight - 66
+    const navTop = nav ? nav.getBoundingClientRect().top : window.innerHeight - navHeight()
     boundsRef.current = {
       minX: EDGE_GAP_PX,
       maxX: window.innerWidth - w - EDGE_GAP_PX,

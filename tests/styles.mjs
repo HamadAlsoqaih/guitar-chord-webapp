@@ -40,7 +40,7 @@ const TOKENS = [
   '--font-ui', '--font-script', '--blue', '--red', '--bg-0', '--bg-1', '--panel',
   '--panel-2', '--sunk', '--edge', '--edge-strong', '--ink', '--dim', '--on-accent',
   '--shadow-1', '--shadow-2', '--shadow-pop', '--glow-blue', '--glow-red', '--radius',
-  '--radius-lg', '--nav-h', '--tap', '--machine-top', '--machine-h', '--machine-w',
+  '--radius-lg', '--nav-h', '--nav-safe', '--tap', '--machine-top', '--machine-h', '--machine-w',
   '--strum-gap',
 ]
 

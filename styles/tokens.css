@@ -37,6 +37,18 @@
   --nav-h: 66px;
   --tap: 44px;
 
+  /*
+   * How much room the tab bar leaves below its contents for the home indicator.
+   *
+   * Capped rather than taken whole. The inset is reserved on top of the bar's own
+   * centring slack, so an uncapped one puts the labels `--nav-h / 2 + inset` above
+   * the bottom of the screen — fine on a phone, but a standalone web app on iPad
+   * reports a much larger inset and the bar ends up floating with a dead band under
+   * it. 14px still clears the indicator once the ~14px of slack inside the bar is
+   * counted, which is about what a native tab bar leaves.
+   */
+  --nav-safe: min(env(safe-area-inset-bottom, 0px), 14px);
+
   color-scheme: light;
 }
 
