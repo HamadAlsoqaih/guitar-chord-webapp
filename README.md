@@ -111,6 +111,22 @@ environment probe back to re-bake — dropping the real-time shadow map in favou
 contact shadow baked on frame one, and swapping the drum's blur texture without
 forcing a shader rebuild.
 
+**No layout work during a gesture.** The character's floor and walls used to be
+looked up and measured on every call — `querySelector('.nav')` plus a
+`getBoundingClientRect()` — which was two forced layouts on every pointer move of a
+drag, and would have been two per physics step. They are measured when the page
+changes and kept, which the component was already listening for. Counted with a
+patched `getBoundingClientRect`: **two forced layouts per pointer move, now zero.**
+
+`npm run profile` records long tasks through startup and frame times through a drag.
+It does *not* show that improvement, and the reason is worth writing down: these
+tests run on a software rasteriser where a frame of the 3D machine costs about
+250ms, which buries a couple of forced layouts two orders of magnitude down. The
+counted call is the measurement that means anything on a device; the profile is for
+finding what dominates. Two suspicions it settled — the reel strip, which builds in
+44ms and was not worth deferring, and the three-second startup task, which is the
+software rasteriser compiling shaders and is a GPU's rounding error.
+
 **Nothing is drawn that nobody asked for.** The scene renders on demand: anything
 that starts a motion — a pull, a roll, a drag, the beat, the idle sway — says so
 (`activity.js`), and the frame governor asks for every frame the device will give
@@ -156,6 +172,33 @@ a rising figure.
 `npm run test:audio` taps the audio graph: it records every voice as it is scheduled
 and watches every sample that reaches the speakers, which is how the rattle, the
 three bells and their rising pitches are checked without anyone listening.
+
+## Throwing a character
+
+Let go mid-drag and the character keeps the speed your hand had: it arcs under
+gravity, reflects off the walls at the angle it hit them — more than once if it was
+thrown hard — bounces a few decaying times on the floor, rolls to a stop and stands
+itself up. Slower than about 250 px/s it is a drop rather than a throw, and falls
+the way it always has. One switch in settings turns the whole thing off.
+
+The simulation is in `src/coco/throwPhysics.js`, free of the DOM so it can be
+checked without a browser. **Time is simulated in fixed steps, not by frame**: a
+variable step makes the result depend on the frame rate — the same flick landing
+somewhere else on a busy device than on an idle one — and lets a fast body pass
+clean through a wall between one position and the next. `npm run test:throw` asserts
+the property that buys: the same throw lands in the same place at 60fps and at 8fps.
+
+The release velocity is measured against the oldest pointer sample within the last
+70ms rather than the last two events. One late frame before the finger lifts would
+otherwise read as a hand that had stopped, and the throw would die on release —
+which is precisely the case people notice.
+
+Two things the tests had to be taught. A flick paced by `setTimeout` is a *slow
+drag* on a software rasteriser, and the app is right to treat it as one, so the
+gesture is dispatched in one go. And a spinning sprite's corners reach past the
+point the physics bounds — the anchor is clamped, the rotated box is not — so the
+test measures the anchor and separately checks the overhang is a corner's worth
+(21px) rather than a body's.
 
 ## Loading and caching
 

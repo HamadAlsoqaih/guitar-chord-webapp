@@ -89,6 +89,39 @@ export const FALL_PER_PX_MS = 1.1
 export const FALL_MAX_MS = 680
 export const FALL_EASE_POWER = 2.2
 export const TUMBLE_SPINS = [540, 900]
+/**
+ * Throwing a character.
+ *
+ * Pixels and seconds throughout — the simulation works in the units the screen is
+ * measured in, so nothing has to be converted at the boundary.
+ *
+ * The two that decide how it feels: THROW_MIN_SPEED is the line between a drop and
+ * a throw, so a release that was not really a throw still just falls; and the
+ * restitutions are what make each bounce smaller than the last, which is what stops
+ * it looking like a bouncing ball that never settles.
+ */
+export const THROW_MIN_SPEED = 260
+export const THROW_MAX_SPEED = 4200
+/** How far back to look for the release velocity. One late frame must not read as a stop. */
+export const THROW_SAMPLE_MS = 70
+export const THROW_GRAVITY = 3200
+export const THROW_AIR_DRAG = 0.35
+export const THROW_WALL_BOUNCE = 0.55
+export const THROW_CEILING_BOUNCE = 0.4
+export const THROW_FLOOR_BOUNCE = 0.45
+/** Horizontal speed kept through a floor bounce, and lost per second while sliding. */
+export const THROW_FLOOR_FRICTION = 0.82
+export const THROW_GROUND_DRAG = 3.2
+/** Below this vertical speed a floor contact stops bouncing and starts sliding. */
+export const THROW_MIN_BOUNCE_SPEED = 260
+export const THROW_REST_SPEED = 24
+/** Degrees per second of spin for each pixel per second of travel. */
+export const THROW_SPIN_PER_SPEED = 0.55
+export const THROW_SPIN_DRAG = 0.6
+/** Fixed simulation step, and the longest frame it will swallow in one go. */
+export const THROW_STEP_S = 1 / 120
+export const THROW_MAX_FRAME_S = 1 / 15
+
 export const HOP_DELAY_MS = 620
 export const HOP_MS = 520
 export const HOP_LIFT_PX = 46
@@ -137,6 +170,8 @@ export function defaults() {
     charMode: 'pixel',
     charSize: 100,
     motion: 'off',
+    // Let go mid-drag and the character keeps the speed your hand had.
+    throwPhysics: true,
   }
 }
 

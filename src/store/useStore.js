@@ -63,6 +63,7 @@ function reconcile(saved) {
   if (['video', 'pixel', 'both'].includes(saved.charMode)) out.charMode = saved.charMode
   if (Number.isFinite(saved.charSize)) out.charSize = clamp(Math.round(saved.charSize), CHAR_SIZE_MIN, CHAR_SIZE_MAX)
   if (MOTION_LEVELS.includes(saved.motion)) out.motion = saved.motion
+  if (typeof saved.throwPhysics === 'boolean') out.throwPhysics = saved.throwPhysics
   return out
 }
 
@@ -161,6 +162,10 @@ export const useStore = create((set, get) => ({
   },
   setSound: (sound) => {
     set({ sound })
+    persist(get())
+  },
+  setThrowPhysics: (throwPhysics) => {
+    set({ throwPhysics })
     persist(get())
   },
   setCharMode: (charMode) => {

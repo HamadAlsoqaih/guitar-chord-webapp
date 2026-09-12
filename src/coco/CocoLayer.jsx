@@ -16,6 +16,8 @@ import {
   LEVER_DROP_PAD,
   PIXEL_FRAME_MS,
   PIXEL_REACT_MS,
+  THROW_MIN_SPEED,
+  THROW_SAMPLE_MS,
   TUMBLE_SPINS,
 } from '../store/defaults.js'
 import { getLeverRect, pullLever } from '../machine/leverBridge.js'
@@ -23,6 +25,7 @@ import { useStore } from '../store/useStore.js'
 import { filledBubble, paintBubble } from './bubbleArt.js'
 import { tier } from '../machine/quality.js'
 import { findCrop, matte } from './videoMatte.js'
+import { advance, makeThrow, releaseVelocity } from './throwPhysics.js'
 
 const asset = (file) => `${import.meta.env.BASE_URL}assets/${file}`
 const VIDEO_SRC = asset('koko-idle.mp4')
@@ -183,6 +186,10 @@ function Character({ which, size, onTap }) {
   const [flipped, setFlipped] = useState(false)
   // Read by apply() on every animation frame, so it must not go through a render.
   const offsetRef = useRef(bubbleOffset(size, false))
+  /** True while a throw is in the air, so a re-place does not snap him to the floor. */
+  const throwingRef = useRef(false)
+  /** The last moments of the drag, for working out how fast he was let go. */
+  const trailRef = useRef([])
 
   const pickLine = useStore((s) => s.pickLine)
   const savePos = useStore((s) => s.setCharPos)
@@ -210,24 +217,52 @@ function Character({ which, size, onTap }) {
     apply()
   }, [apply, flipped, size])
 
-  /** The floor: just above the nav bar. */
-  const groundY = useCallback(() => {
+  /**
+   * Where the character is allowed to be, measured once and kept.
+   *
+   * This used to look the nav bar up and measure it on every call — which meant two
+   * forced layouts on every single pointermove of a drag, and would have meant two
+   * per physics step. The numbers only change when the page does, and the component
+   * already listens for exactly those moments.
+   */
+  const boundsRef = useRef(null)
+
+  const measure = useCallback(() => {
+    const el = rootRef.current
+    if (!el) return null
+    const w = boxRef.current.w || el.offsetWidth || 0
+    const h = boxRef.current.h || el.offsetHeight || 0
+    if (!h || !w) return null
     const nav = document.querySelector('.nav')
-    const h = boxRef.current.h || rootRef.current?.offsetHeight || 0
-    if (!h) return -1
     const navTop = nav ? nav.getBoundingClientRect().top : window.innerHeight - 66
-    return navTop - h - GROUND_GAP_PX
+    boundsRef.current = {
+      minX: EDGE_GAP_PX,
+      maxX: window.innerWidth - w - EDGE_GAP_PX,
+      minY: EDGE_GAP_PX,
+      maxY: navTop - h - GROUND_GAP_PX,
+    }
+    return boundsRef.current
   }, [])
 
-  const maxX = useCallback(
-    () => window.innerWidth - (boxRef.current.w || rootRef.current?.offsetWidth || 0) - EDGE_GAP_PX,
-    []
-  )
+  const bounds = useCallback(() => boundsRef.current || measure(), [measure])
+
+  /** The floor: just above the nav bar. */
+  const groundY = useCallback(() => bounds()?.maxY ?? -1, [bounds])
+
+  const maxX = useCallback(() => bounds()?.maxX ?? -1, [bounds])
 
   const place = useCallback(() => {
     const el = rootRef.current
     if (!el) return
+    // Mid-flight the bounds still want refreshing, but not his position.
+    if (throwingRef.current) {
+      measure()
+      return
+    }
     boxRef.current = { w: el.offsetWidth, h: el.offsetHeight }
+    // The element's own size has just been read, so this is the cheap moment to
+    // work out the walls and the floor that go with it.
+    measure()
     const g = groundY()
     const mx = maxX()
     // Nothing sensible to compute yet — usually the sprite has not loaded, so the
@@ -248,7 +283,7 @@ function Character({ which, size, onTap }) {
       savedRef.current = { x, y: g }
       savePos(which, { x, y: g })
     }
-  }, [apply, groundY, maxX, savePos, which])
+  }, [apply, groundY, maxX, measure, savePos, which])
 
   /*
    * Re-ground on resize, on rotation, whenever the layout shifts — and whenever he
@@ -350,6 +385,45 @@ function Character({ which, size, onTap }) {
     [apply, groundY, savePos, settle, which]
   )
 
+  /**
+   * The throw.
+   *
+   * Everything about where it goes is in `throwPhysics.js`; what is here is the part
+   * that belongs to a character — writing each frame to the element, and standing
+   * back up once it has stopped. The loop reads the cached bounds, so a throw does
+   * no layout work at all no matter how long it bounces around.
+   */
+  const launch = useCallback(
+    (vx, vy) => {
+      const box = measure()
+      const p = posRef.current
+      if (!box || !p) return false
+      const body = makeThrow({ x: p.x, y: p.y, vx, vy, rot: rotRef.current })
+      cancelAnimationFrame(rafRef.current)
+      throwingRef.current = true
+
+      let last = performance.now()
+      const tick = (now) => {
+        const done = advance(body, boundsRef.current || box, (now - last) / 1000)
+        last = now
+        posRef.current = { x: body.x, y: body.y }
+        rotRef.current = body.rot
+        apply()
+        if (!done) {
+          rafRef.current = requestAnimationFrame(tick)
+          return
+        }
+        throwingRef.current = false
+        setFlipped(body.x > window.innerWidth / 2 - 40)
+        // settle() hops him upright if he has come to rest on his head.
+        settle(body.x, body.y, Math.round(body.rot))
+      }
+      rafRef.current = requestAnimationFrame(tick)
+      return true
+    },
+    [apply, measure, settle]
+  )
+
   const onPointerDown = (e) => {
     const el = rootRef.current
     if (!el) return
@@ -367,6 +441,8 @@ function Character({ which, size, onTap }) {
     const startX = e.clientX
     const startY = e.clientY
     let moved = false
+    trailRef.current = [{ x: e.clientX, y: e.clientY, t: e.timeStamp || performance.now() }]
+    throwingRef.current = false
 
     const move = (ev) => {
       if (ev.pointerId !== e.pointerId) return
@@ -377,6 +453,10 @@ function Character({ which, size, onTap }) {
       }
       if (!moved) return
       cancelAnimationFrame(rafRef.current)
+      // Keep the last moments of the gesture; the release speed comes from these.
+      const trail = trailRef.current
+      trail.push({ x: ev.clientX, y: ev.clientY, t: ev.timeStamp || performance.now() })
+      if (trail.length > 8) trail.shift()
       const nx = Math.max(EDGE_GAP_PX, Math.min(maxX(), ev.clientX - offX))
       posRef.current = {
         x: nx,
@@ -414,7 +494,21 @@ function Character({ which, size, onTap }) {
         ev.clientY > lever.top - LEVER_DROP_PAD &&
         ev.clientY < lever.bottom + LEVER_DROP_PAD + 10
       if (onLever) pullLever()
-      drop(x, onLever)
+
+      /*
+       * Was that a throw or a drop? Anything slower than THROW_MIN_SPEED was a
+       * release rather than a flick, and still falls the way it always has — as
+       * does a drop onto the lever, which has its own tumble to play.
+       */
+      const trail = trailRef.current
+      trail.push({ x: ev.clientX, y: ev.clientY, t: ev.timeStamp || performance.now() })
+      const { vx, vy, speed } = releaseVelocity(trail, THROW_SAMPLE_MS, trail[trail.length - 1].t)
+      const thrown =
+        !onLever &&
+        useStore.getState().throwPhysics &&
+        speed >= THROW_MIN_SPEED &&
+        launch(vx, vy)
+      if (!thrown) drop(x, onLever)
     }
 
     el.addEventListener('pointermove', move)

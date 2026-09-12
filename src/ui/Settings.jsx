@@ -35,6 +35,7 @@ export function Settings() {
   const learn = useStore((s) => s.learn)
   const patterns = useStore((s) => s.patterns)
   const sound = useStore((s) => s.sound)
+  const throwPhysics = useStore((s) => s.throwPhysics)
   const charMode = useStore((s) => s.charMode)
   const sayTaps = useStore((s) => s.sayTaps)
   const sayDrags = useStore((s) => s.sayDrags)
@@ -42,6 +43,7 @@ export function Settings() {
   const setBpm = useStore((s) => s.setBpm)
   const setReelCount = useStore((s) => s.setReelCount)
   const setSound = useStore((s) => s.setSound)
+  const setThrowPhysics = useStore((s) => s.setThrowPhysics)
   const motion = useStore((s) => s.motion)
   const setMotion = useStore((s) => s.setMotion)
   const setPopup = useStore((s) => s.setPopup)
@@ -125,6 +127,19 @@ export function Settings() {
               </button>
             ))}
           </div>
+        </Row>
+      </div>
+
+      <div className="group">
+        <Row title="Throw the characters" sub="Let go mid-drag and they fly, bounce off the walls and land">
+          <button
+            className="switch"
+            data-on={throwPhysics}
+            onClick={() => setThrowPhysics(!throwPhysics)}
+            role="switch"
+            aria-checked={throwPhysics}
+            aria-label="Throw the characters"
+          />
         </Row>
       </div>
 
