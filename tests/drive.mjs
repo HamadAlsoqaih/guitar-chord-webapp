@@ -70,7 +70,7 @@ async function run() {
   await wait(500)
 
   console.log('\nPractice page')
-  check('header title', (await page.textContent('.header h1')) === 'Chord Machine')
+  check('header title', (await page.textContent('.header h1')) === 'Chord Roller')
   check('subtitle locked', (await page.textContent('.header p')) === 'Pull the lever to roll')
   check('WebGL machine took over', (await page.$$('.machine-slot canvas')).length === 1)
   check('DOM fallback removed', (await page.$$('.fb-reel')).length === 0)

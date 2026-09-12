@@ -51,7 +51,7 @@ const offline = await page.evaluate(() => ({
   canvas: document.querySelectorAll('.machine-slot canvas').length,
   ready: window.__chordRoller?.state?.().ready3d ?? null,
 }))
-check('the app opens with no network', offline.title === 'Chord Machine', offline.title ?? 'no page')
+check('the app opens with no network', offline.title === 'Chord Roller', offline.title ?? 'no page')
 check('and the 3D machine comes up', offline.canvas === 1 && offline.ready === true)
 
 await ctx.setOffline(false)
