@@ -12,7 +12,8 @@
     "test:audio": "node tests/audio.mjs",
     "test:offline": "node tests/offline.mjs",
     "test:tilt": "node tests/tilt.mjs",
-    "test:styles": "node tests/styles.mjs"
+    "test:styles": "node tests/styles.mjs",
+    "test:contact": "node tests/contact.mjs"
   },
   "dependencies": {
     "@react-spring/three": "^9.7.5",

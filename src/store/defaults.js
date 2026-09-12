@@ -132,7 +132,9 @@ export function defaults() {
     sayFalls: [{ text: 'ايي, تعورت!', on: true }],
     kokoPos: null,
     pixPos: null,
-    charMode: 'video',
+    // The sprite is the character people meet first; the filmed Coco is the
+    // alternative. Only a fresh install sees this — a saved choice is kept.
+    charMode: 'pixel',
     charSize: 100,
     motion: 'off',
   }

@@ -292,7 +292,8 @@ async function run() {
    */
   await page.click('.nav button:last-child')
   await wait(300)
-  await page.click('.group:last-child .row')
+  // last-of-type, not last-child: the footer is the last child of the settings list.
+  await page.click('.group:last-of-type .row')
   await wait(400)
   // Scoped to the sheet: the settings page behind it has a segmented control too.
   await page.click('.scrim .seg button:first-child') // the filmed Coco

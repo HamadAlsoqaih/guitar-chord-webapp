@@ -11,7 +11,7 @@ const MOODS = [
 
 const MODES = [
   { key: 'video', label: 'Coco' },
-  { key: 'pixel', label: 'Pixel' },
+  { key: 'pixel', label: 'Chibi Coco' },
   { key: 'both', label: 'Both' },
 ]
 

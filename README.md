@@ -199,6 +199,28 @@ silently break otherwise — the audio context unlocked from a real gesture, the
 `npm test` drives the app through real touch events at both iPad orientations,
 including two-finger reel scrubbing and a stray second finger during a lever pull.
 
+## Contact
+
+The footer at the end of settings reads *Made by hamad • Contact US*, and the link
+behind it comes from one object in `src/ui/contact.js`:
+
+```js
+export const CONTACT = {
+  phone: '+966 50 000 0000',
+  // email: 'hamad@example.com',
+  // website: 'hamad.example.com',
+}
+```
+
+Uncomment a line and the link follows it — email first, then website, then phone —
+with nothing else to change. That is why the details are an object rather than three
+commented-out links in the markup: a commented-out link has to be uncommented *and*
+wired up, and the second half is the half people forget. The number that ships is a
+placeholder: live and tappable, and obviously not real. With every line commented
+out the footer says "Contact US" as plain text rather than offering a dead link.
+
+`npm run test:contact` holds that behaviour to its promise.
+
 ## Assets
 
 The character files carry embedded provenance metadata from the tool that produced

@@ -112,7 +112,7 @@ async function tour(viewport, name, reelCount) {
   const sheets = [
     ['chords', '.group:nth-of-type(2) .row:first-child'],
     ['patterns', '.group:nth-of-type(2) .row:nth-child(3)'],
-    ['coco', '.group:last-child .row'],
+    ['coco', '.group:last-of-type .row'],
   ]
   for (const [label, selector] of sheets) {
     const opened = await page.click(selector).then(() => true).catch(() => false)

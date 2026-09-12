@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BPM_MAX, BPM_MIN, BPM_STEP, REELS_MAX, REELS_MIN } from '../store/defaults.js'
 import { clamp, useStore } from '../store/useStore.js'
+import { Footer } from './Footer.jsx'
 
 const countOn = (list) => list.filter((x) => x.on).length
 
@@ -54,7 +55,7 @@ export function Settings() {
     setBpm(Number.isFinite(parsed) ? clamp(parsed, BPM_MIN, BPM_MAX) : bpm)
   }
 
-  const charLabel = charMode === 'both' ? 'Both characters' : charMode === 'pixel' ? 'Pixel Coco' : 'Coco'
+  const charLabel = charMode === 'both' ? 'Both characters' : charMode === 'pixel' ? 'Chibi Coco' : 'Coco'
   const lineCount = sayTaps.length + sayDrags.length + sayFalls.length
 
   return (
@@ -143,6 +144,8 @@ export function Settings() {
       <div className="group">
         <Row title="كوكو · Coco" sub={`${charLabel} · ${lineCount} lines`} onClick={() => setPopup('koko')} />
       </div>
+
+      <Footer />
     </div>
   )
 }

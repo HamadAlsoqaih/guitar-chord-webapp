@@ -535,6 +535,42 @@ input {
   overflow: hidden;
 }
 
+/*
+ * Settings ends on this rather than on the last card. It never shrinks: the list is
+ * a scrolling flex column, and a footer that can give up its height is a footer
+ * that arrives squashed on a short screen.
+ */
+.footer {
+  flex: 0 0 auto;
+  width: min(760px, 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 0 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--dim);
+}
+
+.footer-dot {
+  opacity: 0.55;
+}
+
+.footer-link {
+  color: var(--blue);
+  text-decoration: none;
+  font-weight: 700;
+  /* A finger's worth of target — 44pt clear — without the text moving. */
+  padding: 15px 14px;
+  margin: -15px -14px;
+  border-radius: 12px;
+}
+
+.footer-link:active {
+  background: color-mix(in srgb, var(--blue) 12%, transparent);
+}
+
 .row {
   display: flex;
   align-items: center;
