@@ -17,7 +17,7 @@ export function Header() {
   return (
     <header className="header">
       <div>
-        <h1>{home ? 'Chord Machine' : 'Settings'}</h1>
+        <h1>{home ? 'Chord Roller' : 'Settings'}</h1>
         <p>{subtitle}</p>
       </div>
       <div className="header-actions">
