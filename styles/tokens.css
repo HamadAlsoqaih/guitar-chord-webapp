@@ -8,10 +8,7 @@
   --font-script: 'Pacifico', 'Archivo', cursive;
 
   --blue: #2f6df0;
-  --blue-soft: #6f9bff;
   --red: #f4443f;
-  --red-soft: #ff6b63;
-  --neon: #ff2d4f;
 
   /* Surfaces */
   --bg-0: #eef1f7;
@@ -24,7 +21,6 @@
 
   /* Text */
   --ink: #121726;
-  --ink-2: #39405a;
   --dim: #737d99;
   --on-accent: #ffffff;
 
@@ -35,14 +31,12 @@
   --glow-blue: 0 0 32px -8px rgba(47, 109, 240, 0.75);
   --glow-red: 0 0 32px -8px rgba(244, 68, 63, 0.8);
 
-  --radius-sm: 12px;
   --radius: 18px;
   --radius-lg: 26px;
 
   --nav-h: 66px;
   --tap: 44px;
 
-  --scene-fog: #cfd7e8;
   color-scheme: light;
 }
 
@@ -56,16 +50,13 @@
   --edge-strong: rgba(255, 255, 255, 0.16);
 
   --ink: #f2f5ff;
-  --ink-2: #c3cade;
   --dim: #8992ab;
 
   --blue: #3f7dff;
-  --blue-soft: #86adff;
 
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 14px -6px rgba(0, 0, 0, 0.7);
   --shadow-2: 0 2px 8px rgba(0, 0, 0, 0.55), 0 22px 48px -20px rgba(0, 0, 0, 0.85);
   --shadow-pop: 0 40px 90px -30px rgba(0, 0, 0, 0.9);
 
-  --scene-fog: #070910;
   color-scheme: dark;
 }

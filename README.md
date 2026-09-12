@@ -179,6 +179,16 @@ and the two never matched, leaving a cache that was full and useless.
 
 `npm run test:offline` cuts the network and reloads to prove the app still opens.
 
+**Changing CSS without guessing.** `npm run test:styles <file.json>` walks every
+element on twenty-six screens — both themes, both orientations, two to six reels,
+the settings page, each sheet, the loading skeleton and the DOM machine — and
+records its box and its resolved styles, plus every design token. Take one before a
+stylesheet change and one after: a deletion of rules nothing uses has to produce an
+identical file, and any line that differs names the element and the property that
+actually depended on the rule. Anything that animates is left out so two runs of an
+unchanged app agree exactly, which is worth checking first — an instrument that is
+not stable against itself proves nothing.
+
 ## Touch
 
 Built for fingers: pointer capture with per-pointer locking so a second finger can't
